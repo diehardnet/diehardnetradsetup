@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import argparse
+import logging
 import os
 
 import torch
@@ -13,7 +14,7 @@ from configs import Timer
 from diehardnet.pytorch_scripts.utils import build_model
 
 
-def load_dataset(batch_size: int, dataset: str, data_dir: str) -> torch.utils.data.DataLoader:
+def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int) -> torch.tensor:
     transform = torchvision.transforms.Compose([torchvision.transforms.ToTensor(),
                                                 torchvision.transforms.Normalize(
                                                     mean=[0.485, 0.456, 0.406],
@@ -27,9 +28,17 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str) -> torch.utils.da
     else:
         raise ValueError(f"Incorrect dataset {dataset}")
 
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False)
+    subset = torch.utils.data.SequentialSampler(range(test_sample))
+    test_loader = torch.utils.data.DataLoader(dataset=test_set, sampler=subset, batch_size=batch_size, shuffle=False)
+    input_dataset, input_labels = list(), list()
+    # Fixme: correct this GPU load
+    for inputs, labels in test_loader:
+        input_dataset.append(torch.tensor([i.to(configs.DEVICE) for i in inputs]))
+        input_labels.append(torch.tensor([i.to(configs.DEVICE) for i in labels]))
+    input_dataset = torch.tensor(input_dataset).to(configs.DEVICE)
+    input_labels = torch.tensor(input_labels).to(configs.DEVICE)
 
-    return test_loader
+    return input_dataset, input_labels
 
 
 def load_ptl_model(args):
@@ -76,23 +85,63 @@ def parse_args() -> Tuple[argparse.Namespace, str]:
     return args, args_text
 
 
-def compare_output_with_gold(gold_probabilities_list, probabilities) -> int:
-    top1_label = int(torch.topk(probabilities, k=1).indices.squeeze(0))
-    top1_prob = torch.softmax(probabilities, dim=1)[0, top1_label].item()
-    gold_probabilities = gold_probabilities_list[i]
-    gold_top1_label = int(torch.topk(gold_probabilities, k=1).indices.squeeze(0))
-    gold_top1_prob = torch.softmax(gold_probabilities, dim=1)[0, gold_top1_label].item()
-    cmp_gold_prob = torch.flatten(gold_probabilities)
-    cmp_out_prob = torch.flatten(probabilities)
-    if torch.any(torch.not_equal(cmp_gold_prob, cmp_out_prob)):
-        for it, (g, f) in enumerate(zip(cmp_gold_prob, cmp_out_prob)):
-            if g != f:
-                print(f"{it} e:{g} r:{f}")
-        if gold_top1_label != top1_label:
-            print(f"Critical SDC detected. "
-                  f"e_label:{gold_top1_label} r_label:{top1_label} "
-                  f"e_prob:{gold_top1_prob} r_prob:{top1_prob}")
-    return 0
+def equal(rhs: torch.Tensor, lhs: torch.Tensor, threshold: float = None) -> bool:
+    """ Compare based or not in a threshold, if threshold is none then it is equal comparison    """
+    if threshold:
+        return bool(torch.all(torch.le(torch.abs(torch.subtract(rhs, lhs)), threshold)))
+    else:
+        return bool(torch.equal(rhs, lhs))
+
+
+def compare_classification(output_tensor: torch.tensor,
+                           golden_tensor: torch.tensor,
+                           golden_top_k_labels: torch.tensor,
+                           setup_iteration: int,
+                           current_image: str,
+                           top_k: int,
+                           output_logger: logging.Logger = None) -> int:
+    # Make sure that they are on CPU
+    dnn_output_tensor_cpu = output_tensor.to("cpu")
+    # # Debug injection
+    # if setup_iteration + batch_iteration == 20:
+    #     for i in range(300, 900):
+    #         dnn_output_tensor_cpu[3][i] = 34.2
+    output_errors = 0
+    # using the same approach as the detection, compare only the positions that differ
+    if equal(rhs=golden_tensor, lhs=dnn_output_tensor_cpu, threshold=configs.CLASSIFICATION_ABS_THRESHOLD) is False:
+        # ------------ Check the size of the tensors
+        if golden_tensor.shape != dnn_output_tensor_cpu.shape:
+            error_detail = f"DIFF_SIZE g:{golden_tensor.shape} o:{dnn_output_tensor_cpu.shape}"
+            if output_logger:
+                output_logger.error(error_detail)
+            dnn_log_helper.log_error_detail(error_detail)
+        # ------------ Critical error checking
+        if output_logger:
+            output_logger.error("Not equal output tensors")
+        # Check if there is a Critical error
+        top_k_labels = torch.topk(output_tensor, k=top_k).indices.squeeze(0)
+        # top_k_probs = torch.tensor([torch.softmax(output_tensor, dim=1)[0, idx].item() for idx in top_k_labels])
+        if torch.any(torch.not_equal(golden_top_k_labels, top_k_labels)):
+            if output_logger:
+                output_logger.error("Critical error identified")
+            for i, tpk_found, tpk_gold in enumerate(zip(golden_top_k_labels, top_k_labels)):
+                if tpk_found != tpk_gold:  # Both are integers
+                    error_detail = f"critical--img:{current_image} "
+                    error_detail += f"setupit:{setup_iteration} i:{i} g:{tpk_found:.6e} o:{tpk_found}"
+                    if output_logger:
+                        output_logger.error(error_detail)
+                    dnn_log_helper.log_error_detail(error_detail)
+
+        # ------------ Check error on the whole output
+        for i, (gold, found) in enumerate(zip(golden_tensor, dnn_output_tensor_cpu)):
+            if abs(gold - found) > configs.CLASSIFICATION_ABS_THRESHOLD:
+                output_errors += 1
+                error_detail = f"img:{current_image} setupit:{setup_iteration} i:{i} g:{gold:.6e} o:{found:.6e}"
+                if output_logger:
+                    output_logger.error(error_detail)
+                dnn_log_helper.log_error_detail(error_detail)
+
+    return output_errors
 
 
 def main():
@@ -103,20 +152,14 @@ def main():
     torch.set_grad_enabled(mode=False)
     args, args_text = parse_args()
     # Starting the setup
-    # Check the available device
-    device = "cuda:0"
     dnn_log_helper.set_iter_interval_print(30)
-    if torch.cuda.is_available() is False:
-        raise RuntimeError("GPU is not available")
     # Load the model
     model = load_ptl_model(args=args)
     model.eval()
-    model = model.to(device)
+    model = model.to(configs.DEVICE)
     main_logger_name = str(os.path.basename(__file__)).replace(".py", "")
-    output_logger = console_logger.ColoredLogger(main_logger_name)
+    terminal_logger = console_logger.ColoredLogger(main_logger_name)
     args, args_conf = parse_args()
-    for k, v in vars(args).items():
-        output_logger.debug(f"{k}:{v}")
     generate = args.generate
     iterations = args.iterations
     gold_path = args.goldpath
@@ -126,19 +169,30 @@ def main():
     data_dir = args.datadir
     dataset = args.dataset
 
+    if disable_console_logger is False:
+        for k, v in vars(args).items():
+            terminal_logger.debug(f"{k}:{v}")
+
     # First step is to load the inputs in the memory
     timer.tic()
     input_list = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir)
     timer.toc()
-    output_logger.debug(f"Time necessary to load the inputs: {timer}")
+    if disable_console_logger is False:
+        terminal_logger.debug(f"Time necessary to load the inputs: {timer}")
 
     # Load if it is not a gold generating op
     gold_probabilities_list = list()
+    golden_top_k_labels_list = list()
     if generate is False:
         timer.tic()
         gold_probabilities_list = torch.load(gold_path)
+        golden_top_k_labels_list = [
+            torch.topk(output_tensor, k=configs.CLASSIFICATION_CRITICAL_TOP_K).indices.squeeze(0)
+            for output_tensor in gold_probabilities_list
+        ]
         timer.toc()
-        output_logger.debug(f"Time necessary to load the golden outputs: {timer}")
+        if disable_console_logger is False:
+            terminal_logger.debug(f"Time necessary to load the golden outputs: {timer}")
 
     # Start the setup
     dnn_log_helper.start_setup_log_file(framework_name="PyTorch", args_conf=args_conf, model_name=model_name,
@@ -150,11 +204,10 @@ def main():
     while setup_iteration < iterations:
         total_errors = 0
         # Loop over the input list
-        for batched_input in input_list:
-            image_gpu = batched_input.to("cuda")
+        for img_i, batched_input in enumerate(input_list):
             timer.tic()
             dnn_log_helper.start_iteration()
-            dnn_output = model(image_gpu, inject=False)
+            dnn_output = model(batched_input, inject=False)
             dnn_log_helper.end_iteration()
             timer.toc()
             kernel_time = timer.diff_time
@@ -164,27 +217,33 @@ def main():
             timer.tic()
             errors = 0
             if generate is False:
-                errors = compare_output_with_gold(gold_probabilities_list, probabilities)
+                errors = compare_classification(output_tensor=dnn_output,
+                                                golden_tensor=gold_probabilities_list[img_i],
+                                                golden_top_k_labels=golden_top_k_labels_list[img_i],
+                                                setup_iteration=setup_iteration, current_image=img_i,
+                                                top_k=configs.CLASSIFICATION_CRITICAL_TOP_K,
+                                                output_logger=terminal_logger)
             else:
                 gold_probabilities_list.append(probabilities)
             total_errors += errors
             timer.toc()
-            comparison_time = timer.diff_time
 
-            iteration_out = f"It:{setup_iteration:<3} imgit:{img_i:<3}"
-            iteration_out += f" inference time:{kernel_time:.5f}"
-            time_pct = (comparison_time / (comparison_time + kernel_time)) * 100.0
-            iteration_out += f", gold compare time:{comparison_time:.5f} ({time_pct:.1f}%) errors:{errors}"
-            output_logger.debug(iteration_out)
+            # Printing timing information
+            if disable_console_logger is False:
+                comparison_time = timer.diff_time
+                time_pct = (comparison_time / (comparison_time + kernel_time)) * 100.0
+                iteration_out = f"It:{setup_iteration:<3} imgit:{img_i:<3} inference time:{kernel_time:.5f}, "
+                iteration_out += f"gold compare time:{comparison_time:.5f} ({time_pct:.1f}%) errors:{errors}"
+                terminal_logger.debug(iteration_out)
 
-        # Reload after error
-        if total_errors != 0:
-            del input_list
-            del model
-            model = load_ptl_model(args=args)
-            model.eval()
-            model = model.to(device)
-            input_list = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir)
+            # Reload all the memories after error
+            if total_errors != 0:
+                del input_list
+                del model
+                model = load_ptl_model(args=args)
+                model.eval()
+                model = model.to(configs.DEVICE)
+                input_list = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir)
 
         setup_iteration += 1
 

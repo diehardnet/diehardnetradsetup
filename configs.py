@@ -2,11 +2,19 @@
 import enum
 import time
 
+import torch
+
 CLASSIFICATION_ABS_THRESHOLD = 1e-5
 DETECTION_BOXES_ABS_THRESHOLD = 1e-5
 DETECTION_SCORES_ABS_THRESHOLD = 1e-5
 
 MAXIMUM_ERRORS_PER_ITERATION = 4096
+
+CLASSIFICATION_CRITICAL_TOP_K = 1
+
+# FORCE the gpu to be present
+DEVICE = "cuda:0"
+assert torch.cuda.is_available() is True, RuntimeError("GPU is not available")
 
 
 # Classification
