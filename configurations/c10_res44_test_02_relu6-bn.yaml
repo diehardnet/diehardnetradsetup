@@ -1,0 +1,21 @@
+name: c10_res44_test_02_relu6-bn_200_epochs
+mode: validate
+ckpt: c10_res44_test_02_relu6-bn_sgd-epoch=99-val_acc=0.91.ckpt
+dataset: cifar10
+num_gpus: 1
+model: hard_resnet44
+loss: bce
+clip: !!float 0.05
+order: relu-bn
+activation: relu6
+affine: true
+epochs: 200
+batch_size: 128
+lr: !!float 1e-3
+wd: !!float 1e-3
+optimizer: adamw
+seed: 0
+error_model: square
+inject_p: !!float 0.75
+inject_epoch: 0
+comment: Uniform noise [0, epoch). Inj each conv and linear layer. square model. p_c [0.3]. No single value injections.

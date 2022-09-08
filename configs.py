@@ -2,8 +2,6 @@
 import enum
 import time
 
-import torch
-
 CLASSIFICATION_ABS_THRESHOLD = 1e-5
 DETECTION_BOXES_ABS_THRESHOLD = 1e-5
 DETECTION_SCORES_ABS_THRESHOLD = 1e-5
@@ -11,24 +9,22 @@ DETECTION_SCORES_ABS_THRESHOLD = 1e-5
 MAXIMUM_ERRORS_PER_ITERATION = 4096
 
 CLASSIFICATION_CRITICAL_TOP_K = 1
-
 # FORCE the gpu to be present
 DEVICE = "cuda:0"
-assert torch.cuda.is_available() is True, RuntimeError("GPU is not available")
 
 
 # Classification
 # noinspection PyArgumentList
 class DNNName(enum.Enum):
     # CIFAR 10
-    MobileNetV2Cifar10 = enum.auto()
+    RepVGGA2Cifar10 = enum.auto()
     ResNet44Cifar10 = enum.auto()
     DiehardNetRe6Cifar10 = enum.auto()
     DiehardNetTrainWCifar10 = enum.auto()
     DiehardNetOrderICifar10 = enum.auto()
     DiehardNetNanFilCifar10 = enum.auto()
     # CIFAR 100
-    MobileNetV2Cifar100 = enum.auto()
+    RepVGGA2Cifar100 = enum.auto()
     ResNet44Cifar100 = enum.auto()
     DiehardNetRe6Cifar100 = enum.auto()
     DiehardNetTrainWCifar100 = enum.auto()
@@ -39,17 +35,23 @@ class DNNName(enum.Enum):
 
     def __repr__(self): return str(self)
 
+    def equals(self, other: str) -> bool: return other == self.name
+
+    @classmethod
+    def is_str_valid(cls, model: str) -> bool:
+        return any([i.name == model for i in cls])
+
 
 MODEL_LINKS = {
     # CIFAR 10
-    DNNName.MobileNetV2Cifar10: "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2/cifar10_mobilenetv2_x1_4-3bbbd6e2.pt",
+    DNNName.RepVGGA2Cifar10: "cifar10_repvgg_a2",
     DNNName.ResNet44Cifar10: None,
     DNNName.DiehardNetRe6Cifar10: None,
     DNNName.DiehardNetTrainWCifar10: None,
     DNNName.DiehardNetOrderICifar10: None,
     DNNName.DiehardNetNanFilCifar10: None,
     # CIFAR 100
-    DNNName.MobileNetV2Cifar100: "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2/cifar100_mobilenetv2_x1_4-8a269f5e.pt",
+    DNNName.RepVGGA2Cifar100: "cifar100_repvgg_a2",
     DNNName.ResNet44Cifar100: None,
     DNNName.DiehardNetRe6Cifar100: None,
     DNNName.DiehardNetTrainWCifar100: None,
@@ -57,7 +59,7 @@ MODEL_LINKS = {
     DNNName.DiehardNetNanFilCifar100: None,
 }
 
-ALL_DNNS = list(MODEL_LINKS.keys())
+ALL_DNNS = list(map(str, MODEL_LINKS.keys()))
 
 
 class Timer:

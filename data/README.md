@@ -1,0 +1,1 @@
+This directory must contain the datasets and files necessary for the DNNs.
