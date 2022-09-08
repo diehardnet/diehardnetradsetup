@@ -1,6 +1,6 @@
-name: c10_res44_test_02_bn-relu6
+name: mobilenetv2_x1_4
 mode: validate
-ckpt: c10_res44_test_02_bn-relu6_sgd-epoch=99-val_acc=0.93.ckpt
+ckpt: https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2/cifar10_mobilenetv2_x1_4-3bbbd6e2.pt
 dataset: cifar10
 num_gpus: 1
 model: hard_resnet44

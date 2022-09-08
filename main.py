@@ -14,16 +14,17 @@ from configs import Timer
 from pytorch_scripts.utils import build_model
 
 
-def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int) -> torch.tensor:
+def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
+                 download_dataset: bool) -> torch.tensor:
     transform = torchvision.transforms.Compose([torchvision.transforms.ToTensor(),
                                                 torchvision.transforms.Normalize(
                                                     mean=[0.485, 0.456, 0.406],
                                                     std=[0.229, 0.224, 0.225])])
-    if dataset == "cifar10":
-        test_set = torchvision.datasets.cifar.CIFAR10(root=data_dir, download=True, train=False,
+    if dataset == configs.CIFAR10:
+        test_set = torchvision.datasets.cifar.CIFAR10(root=data_dir, download=download_dataset, train=False,
                                                       transform=transform)
-    elif dataset == "cifar100":
-        test_set = torchvision.datasets.cifar.CIFAR100(root=data_dir, download=True, train=False,
+    elif dataset == configs.CIFAR100:
+        test_set = torchvision.datasets.cifar.CIFAR100(root=data_dir, download=download_dataset, train=False,
                                                        transform=transform)
     else:
         raise ValueError(f"Incorrect dataset {dataset}")
@@ -43,26 +44,23 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int)
 
 def load_model(args: argparse.Namespace):
     # It is a mobile net or another
-    if configs.DNNName.RepVGGA2Cifar10.equals(args.dnnname):
-        model = torch.hub.load("chenyaofo/pytorch-cifar-models", configs.MODEL_LINKS[configs.DNNName.RepVGGA2Cifar10],
-                               pretrained=True)
-    elif configs.DNNName.RepVGGA2Cifar100.equals(args.dnnname):
-        model = torch.hub.load("chenyaofo/pytorch-cifar-models", configs.MODEL_LINKS[configs.DNNName.RepVGGA2Cifar100],
-                               pretrained=True)
-    elif configs.DNNName.is_str_valid(args.dnnname):
+    model = None
+    if args.name == "RepVGGA2Cifar10" or args.name == "RepVGGA2Cifar100":
+        model = torch.hub.load("chenyaofo/pytorch-cifar-models", args.ckpt, pretrained=True)
+    elif args.name in configs.ALL_DNNS:
         # Build model (Resnet only up to now)
         optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
-        n_classes = 10 if args.dataset == 'cifar10' else 100
+        n_classes = configs.CLASSES[args.dataset]
 
         model = build_model(model=args.model, n_classes=n_classes, optim_params=optim_params,
-                                  loss=args.loss, inject_p=args.inject_p,
-                                  order=args.order, activation=args.activation, affine=args.affine)
+                            loss=args.loss, inject_p=args.inject_p,
+                            order=args.order, activation=args.activation, affine=args.affine)
         checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['state_dict'])
         model = model.model
     else:
-        raise ValueError("incorrect DNNName")
+        log_and_crash(fatal_string="incorrect DNN name")
     return model
 
 
@@ -79,7 +77,7 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
         with open(args.config, 'r') as f:
             cfg = yaml.safe_load(f)
         defaults.update(**cfg)
-    config_file_name = args.config
+
     # Parse rest of arguments
     # Don't suppress add_help here, so it will handle -h
     parser = argparse.ArgumentParser(
@@ -89,13 +87,13 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
     parser.set_defaults(**defaults)
 
     # parser = argparse.ArgumentParser(description='PyTorch DNN radiation setup')
-    parser.add_argument('--dnnname', default=configs.ALL_DNNS[0],
-                        help=f'Network name. It can be ' + ', '.join(configs.ALL_DNNS))
     parser.add_argument('--iterations', default=int(1e12), help="Iterations to run forever", type=int)
     parser.add_argument('--testsamples', default=100, help="Test samples to be used in the test.", type=int)
 
     parser.add_argument('--batchsize', default=1,
                         help="Batches to process in parallel. Test samples must be multiple of batch size", type=int)
+    parser.add_argument('--downloaddataset', default=False, action="store_true",
+                        help="Set to download the dataset, default is to not download. Needs internet.")
 
     parser.add_argument('--generate', default=False, action="store_true", help="Set this flag to generate the gold")
     parser.add_argument('--disableconsolelog', default=False, action="store_true",
@@ -106,7 +104,7 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
 
     args = parser.parse_args()
     # Check if the model is correct
-    if args.dnnname not in configs.ALL_DNNS:
+    if args.name not in configs.ALL_DNNS:
         parser.print_help()
         raise ValueError("Not the correct model")
 
@@ -138,13 +136,13 @@ def compare_classification(output_tensor: torch.tensor,
     # Make sure that they are on CPU
     out_is_cuda, golden_is_cuda = output_tensor.is_cuda, golden_tensor.is_cuda
     if out_is_cuda or golden_is_cuda:
-        fatal_string = f"The tensors are not on CPU. OUT IS CUDA:{out_is_cuda} GOLDEN IS CUDA:{golden_is_cuda}"
-        log_and_crash(fatal_string=fatal_string)
+        log_and_crash(
+            fatal_string=f"The tensors are not on CPU. OUT IS CUDA:{out_is_cuda} GOLDEN IS CUDA:{golden_is_cuda}"
+        )
 
     output_errors = 0
-
     # Iterate over the batches
-    for img_id, output_batch, golden_batch, golden_batch_label in enumerate(
+    for img_id, (output_batch, golden_batch, golden_batch_label) in enumerate(
             zip(output_tensor, golden_tensor, golden_top_k_labels)):
         # using the same approach as the detection, compare only the positions that differ
         if equal(rhs=golden_batch, lhs=output_batch, threshold=configs.CLASSIFICATION_ABS_THRESHOLD) is False:
@@ -219,16 +217,16 @@ def main():
     test_sample = args.testsamples
     data_dir = args.datadir
     dataset = args.dataset
-
+    download_dataset = args.downloaddataset
     # Starting the setup
     dnn_log_helper.set_iter_interval_print(30)
     is_cuda_available = torch.cuda.is_available()
-    dnn_log_helper.start_setup_log_file(framework_name="PyTorch", args_conf=args_text_list, dnn_name=args.dnnname,
+    dnn_log_helper.start_setup_log_file(framework_name="PyTorch", args_conf=args_text_list,
+                                        dnn_name=args.name.strip("_"),
                                         max_errors_per_iteration=configs.MAXIMUM_ERRORS_PER_ITERATION,
                                         generate=generate)
     if is_cuda_available is False:
-        fatal_string = f"Device {configs.DEVICE} not available."
-        log_and_crash(fatal_string=fatal_string)
+        log_and_crash(fatal_string=f"Device {configs.DEVICE} not available.")
 
     if disable_console_logger is False:
         terminal_logger.debug("\n".join(args_text_list))
@@ -236,7 +234,7 @@ def main():
     # First step is to load the inputs in the memory
     timer.tic()
     input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
-                                            test_sample=test_sample)
+                                            test_sample=test_sample, download_dataset=download_dataset)
     timer.toc()
     if disable_console_logger is False:
         terminal_logger.debug(f"Time necessary to load the inputs: {timer}")
@@ -278,8 +276,9 @@ def main():
             else:
                 golden["prob_list"].append(probabilities)
                 golden["top_k_labels"].append(
-                    torch.tensor([torch.topk(output_batch, k=configs.CLASSIFICATION_CRITICAL_TOP_K).indices.squeeze(0)
-                                  for output_batch in dnn_output])
+                    torch.tensor(
+                        [torch.topk(output_batch, k=configs.CLASSIFICATION_CRITICAL_TOP_K).indices.squeeze(0)
+                         for output_batch in dnn_output])
                 )
             total_errors += errors
             timer.toc()
@@ -300,13 +299,16 @@ def main():
                 model.eval()
                 model = model.to(configs.DEVICE)
                 input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
-                                                        test_sample=test_sample)
+                                                        test_sample=test_sample, download_dataset=download_dataset)
 
         setup_iteration += 1
 
     if generate is True:
         torch.save(golden, gold_path)
-    print("Finish computation.")
+    if disable_console_logger is False:
+        terminal_logger.debug("Finish computation.")
+
+    dnn_log_helper.end_log_file()
 
 
 if __name__ == '__main__':

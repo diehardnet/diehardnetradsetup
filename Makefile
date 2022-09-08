@@ -1,11 +1,14 @@
 
 all: test generate
 
+BATCH_SIZE=100
+TEST_SAMPLES=1000
+ITERATIONS=10
+
 generate:
-	./main.py --dnnname DiehardNetOrderICifar10 \
-	          --iterations 10 \
-	          --testsamples 100 \
-              --batchsize 50 \
+	./main.py --iterations $(ITERATIONS) \
+	          --testsamples $(TEST_SAMPLES) \
+              --batchsize $(BATCH_SIZE) \
               --goldpath ./gold.pt \
               --config configurations/c100_res44_test_02_bn-relu6_base.yaml \
               --checkpointdir /home/carol/git_research/diehardnet_old/checkpoints \
@@ -13,11 +16,10 @@ generate:
               --generate
 
 test:
-	./main.py --dnnname DiehardNetOrderICifar10 \
-	          --iterations 10 \
-	          --testsamples 100 \
-              --batchsize 50 \
+	./main.py --iterations $(ITERATIONS) \
+	          --testsamples $(TEST_SAMPLES) \
+              --batchsize $(BATCH_SIZE) \
               --goldpath ./gold.pt \
               --config configurations/c100_res44_test_02_bn-relu6_base.yaml \
               --checkpointdir /home/carol/git_research/diehardnet_old/checkpoints \
-              --datadir /home/carol/git_research/diehardnetradsetup/data \
+              --datadir /home/carol/git_research/diehardnetradsetup/data
