@@ -159,9 +159,9 @@ def compare_classification(output_tensor: torch.tensor,
     output_errors = 0
     # # FIXME: FI debug
     # # Simulate a non critical error
-    output_tensor[34, 0] *= 0.9
+    # output_tensor[34, 0] *= 0.9
     # # Simulate a critical error
-    output_tensor[55, 0] = 39304
+    # output_tensor[55, 0] = 39304
     # Shape SDC
     # output_tensor = torch.reshape(output_tensor, (4, 3200))
 
@@ -228,38 +228,38 @@ def main():
     # Disable all torch grad
     torch.set_grad_enabled(mode=False)
     args, args_text_list = parse_args()
-    # Load the model
-    model = load_model(args=args)
-    model.eval()
-    model = model.to(configs.DEVICE)
-    main_logger_name = str(os.path.basename(__file__)).replace(".py", "")
-    terminal_logger = console_logger.ColoredLogger(main_logger_name)
+    # Starting the setup
     generate = args.generate
-    iterations = args.iterations
-    gold_path = args.goldpath
-    disable_console_logger = args.disableconsolelog
+    dnn_log_helper.set_iter_interval_print(30)
+    dnn_log_helper.start_setup_log_file(framework_name="PyTorch", args_conf=args_text_list,
+                                        dnn_name=args.name.strip("_"), generate=generate)
+    if torch.cuda.is_available() is False:
+        log_and_crash(fatal_string=f"Device {configs.DEVICE} not available.")
+
     batch_size = args.batch_size
     test_sample = args.testsamples
     data_dir = args.datadir
     dataset = args.dataset
     download_dataset = args.downloaddataset
-    # Starting the setup
-    dnn_log_helper.set_iter_interval_print(30)
-    is_cuda_available = torch.cuda.is_available()
-    dnn_log_helper.start_setup_log_file(framework_name="PyTorch", args_conf=args_text_list,
-                                        dnn_name=args.name.strip("_"), generate=generate)
-    if is_cuda_available is False:
-        log_and_crash(fatal_string=f"Device {configs.DEVICE} not available.")
+    gold_path = args.goldpath
+    iterations = args.iterations
 
-    if disable_console_logger is False:
-        terminal_logger.debug("\n".join(args_text_list))
-
+    # Load the model
+    model = load_model(args=args)
+    model.eval()
+    model = model.to(configs.DEVICE)
     # First step is to load the inputs in the memory
     timer.tic()
     input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
                                             test_sample=test_sample, download_dataset=download_dataset)
     timer.toc()
-    if disable_console_logger is False:
+
+    # Terminal console
+    main_logger_name = str(os.path.basename(__file__)).replace(".py", "")
+    terminal_logger = console_logger.ColoredLogger(main_logger_name) if args.disableconsolelog is False else None
+
+    if terminal_logger:
+        terminal_logger.debug("\n".join(args_text_list))
         terminal_logger.debug(f"Time necessary to load the inputs: {timer}")
 
     # Load if it is not a gold generating op
@@ -268,7 +268,7 @@ def main():
         timer.tic()
         golden = torch.load(gold_path)
         timer.toc()
-        if disable_console_logger is False:
+        if terminal_logger:
             terminal_logger.debug(f"Time necessary to load the golden outputs: {timer}")
 
     # Main setup loop
@@ -306,7 +306,7 @@ def main():
             timer.toc()
 
             # Printing timing information
-            if disable_console_logger is False:
+            if terminal_logger:
                 comparison_time = timer.diff_time
                 time_pct = (comparison_time / (comparison_time + kernel_time)) * 100.0
                 iteration_out = f"It:{setup_iteration:<3} batch_id:{batch_id:<3} inference time:{kernel_time:.5f}, "
@@ -327,7 +327,7 @@ def main():
 
     if generate is True:
         torch.save(golden, gold_path)
-    if disable_console_logger is False:
+    if terminal_logger:
         terminal_logger.debug("Finish computation.")
 
     dnn_log_helper.end_log_file()
