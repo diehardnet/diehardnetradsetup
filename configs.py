@@ -17,7 +17,7 @@ DiehardNetTrainWCifar10 = 'c10_res44_test_02_bn-relu6_base_'
 DiehardNetOrderICifar10 = 'c10_res44_test_02_relu6-bn_200_epochs'
 DiehardNetNanFilCifar10 = ""
 # CIFAR 100
-MobileNetV2x14Cifar100 = "c10_mobilenetv2_x1_4"
+MobileNetV2x14Cifar100 = "c100_mobilenetv2_x1_4"
 ResNet44Cifar100 = 'c100_res44_test_01_bn-relu_base_'
 DiehardNetRe6Cifar100 = 'c100_res44_test_02_bn-relu6'
 DiehardNetTrainWCifar100 = 'c100_res44_test_02_bn-relu6_base_'

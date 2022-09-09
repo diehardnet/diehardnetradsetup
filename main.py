@@ -157,12 +157,12 @@ def compare_classification(output_tensor: torch.tensor,
     output_errors = 0
     # Iterate over the batches
     # FIXME: FI debug
-    print(output_tensor[34].shape)
     output_tensor[34, 0] = 39304
     for img_id, (output_batch, golden_batch, golden_batch_label) in enumerate(
             zip(output_tensor, golden_tensor, golden_top_k_labels)):
         # using the same approach as the detection, compare only the positions that differ
         if equal(rhs=golden_batch, lhs=output_batch, threshold=configs.CLASSIFICATION_ABS_THRESHOLD) is False:
+
             # ------------ Check the size of the tensors
             if golden_batch.shape != output_batch.shape:
                 error_detail = f"img:{img_id} batch:{batch_id} DIFF_SIZE g:{golden_batch.shape} o:{output_batch.shape}"
