@@ -65,7 +65,7 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
 
 def load_model(args: argparse.Namespace):
     # It is a mobile net or common resnet
-    if args.name == "RepVGGA2Cifar10" or args.name == "RepVGGA2Cifar100":
+    if args.name in [configs.MobileNetV2x14Cifar10, configs.MobileNetV2x14Cifar100]:
         model = torch.hub.load("chenyaofo/pytorch-cifar-models", args.ckpt, pretrained=True)
     else:
         # Build model (Resnet only up to now)
@@ -143,7 +143,6 @@ def equal(rhs: torch.Tensor, lhs: torch.Tensor, threshold: float = None) -> bool
 def compare_classification(output_tensor: torch.tensor,
                            golden_tensor: torch.tensor,
                            golden_top_k_labels: torch.tensor,
-                           setup_iteration: int,
                            batch_id: int,
                            top_k: int,
                            output_logger: logging.Logger = None) -> int:
@@ -155,48 +154,57 @@ def compare_classification(output_tensor: torch.tensor,
         )
 
     output_errors = 0
-    # Iterate over the batches
+    output_infos = 0
     # FIXME: FI debug
+    # Simulate a non critical error
+    output_tensor[34, 0] *= 0.9
+
+    # Simulate a critical error
     output_tensor[34, 0] = 39304
+
+    # ------------ Check the size of the tensors
+    if output_tensor.shape != golden_tensor.shape:
+        output_infos += 1
+        error_detail = f"shape-diff g:{golden_tensor.shape} o:{output_tensor.shape}"
+        if output_logger:
+            output_logger.error(error_detail)
+        dnn_log_helper.log_error_detail(error_detail)
+
+    # Iterate over the batches
     for img_id, (output_batch, golden_batch, golden_batch_label) in enumerate(
             zip(output_tensor, golden_tensor, golden_top_k_labels)):
         # using the same approach as the detection, compare only the positions that differ
         if equal(rhs=golden_batch, lhs=output_batch, threshold=configs.CLASSIFICATION_ABS_THRESHOLD) is False:
-
-            # ------------ Check the size of the tensors
-            if golden_batch.shape != output_batch.shape:
-                error_detail = f"img:{img_id} batch:{batch_id} DIFF_SIZE g:{golden_batch.shape} o:{output_batch.shape}"
-                if output_logger:
-                    output_logger.error(error_detail)
-                dnn_log_helper.log_error_detail(error_detail)
             # ------------ Critical error checking
             if output_logger:
                 output_logger.error(f"batch:{batch_id} Not equal output tensors")
 
             # Check if there is a Critical error
-            top_k_batch_label = torch.topk(output_batch, k=top_k).indices.squeeze(0)
-            # top_k_probs = torch.tensor([torch.softmax(output_tensor, dim=1)[0, idx].item()
-            # for idx in top_k_batch_label])
-            if torch.any(torch.not_equal(golden_batch_label, top_k_batch_label)):
-                if output_logger:
-                    output_logger.error(f"img:{img_id} batch:{batch_id} Critical error identified")
-                for i, tpk_found, tpk_gold in enumerate(zip(golden_batch_label, top_k_batch_label)):
-                    if tpk_found != tpk_gold:  # Both are integers
-                        error_detail = f"batch:{batch_id} critical--img:{img_id} "
-                        error_detail += f"setupit:{setup_iteration} i:{i} g:{tpk_found:.6e} o:{tpk_found}"
-                        if output_logger:
-                            output_logger.error(error_detail)
-                        dnn_log_helper.log_error_detail(error_detail)
-
-            # ------------ Check error on the whole output
-            for i, (gold, found) in enumerate(zip(golden_batch, output_batch)):
-                if abs(gold - found) > configs.CLASSIFICATION_ABS_THRESHOLD:
+            top_k_batch_label_flatten = torch.topk(output_batch, k=top_k).indices.squeeze(0).flatten()
+            golden_batch_label_flatten = golden_batch_label.flatten()
+            for i, tpk_found, tpk_gold in enumerate(zip(golden_batch_label_flatten, top_k_batch_label_flatten)):
+                # Both are integers, and log only if it is feasible
+                if tpk_found != tpk_gold and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
                     output_errors += 1
-                    error_detail = f"batch:{batch_id} img:{img_id} "
-                    error_detail += f"setupit:{setup_iteration} i:{i} g:{gold:.6e} o:{found:.6e}"
+                    error_detail = f"batch:{batch_id} critical--img:{img_id} i:{i} g:{tpk_gold:.6e} o:{tpk_found}"
                     if output_logger:
                         output_logger.error(error_detail)
                     dnn_log_helper.log_error_detail(error_detail)
+
+            # ------------ Check error on the whole output
+            for i, (gold, found) in enumerate(zip(golden_batch, output_batch)):
+                diff = abs(gold - found)
+                if diff > configs.CLASSIFICATION_ABS_THRESHOLD and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
+                    output_errors += 1
+                    error_detail = f"batch:{batch_id} img:{img_id} i:{i} g:{gold:.6e} o:{found:.6e}"
+                    if output_logger:
+                        output_logger.error(error_detail)
+                    dnn_log_helper.log_error_detail(error_detail)
+
+    if output_infos != 0:
+        dnn_log_helper.log_info_count(info_count=output_infos)
+    if output_errors != 0:
+        dnn_log_helper.log_error_count(error_count=output_errors)
 
     return output_errors
 
@@ -239,9 +247,7 @@ def main():
     dnn_log_helper.set_iter_interval_print(30)
     is_cuda_available = torch.cuda.is_available()
     dnn_log_helper.start_setup_log_file(framework_name="PyTorch", args_conf=args_text_list,
-                                        dnn_name=args.name.strip("_"),
-                                        max_errors_per_iteration=configs.MAXIMUM_ERRORS_PER_ITERATION,
-                                        generate=generate)
+                                        dnn_name=args.name.strip("_"), generate=generate)
     if is_cuda_available is False:
         log_and_crash(fatal_string=f"Device {configs.DEVICE} not available.")
 
@@ -287,7 +293,6 @@ def main():
                 errors = compare_classification(output_tensor=probabilities,
                                                 golden_tensor=golden["prob_list"][batch_id],
                                                 golden_top_k_labels=golden["top_k_labels"][batch_id],
-                                                setup_iteration=setup_iteration,
                                                 batch_id=batch_id,
                                                 top_k=configs.CLASSIFICATION_CRITICAL_TOP_K,
                                                 output_logger=terminal_logger)
