@@ -18,21 +18,19 @@ from pytorch_scripts.utils import build_model
 class Timer:
     time_measure = 0
 
-    def tic(self):
-        self.time_measure = time.time()
+    def tic(self): self.time_measure = time.time()
 
-    def toc(self):
-        self.time_measure = time.time() - self.time_measure
+    def toc(self): self.time_measure = time.time() - self.time_measure
 
     @property
-    def diff_time(self):
-        return self.time_measure
+    def diff_time(self): return self.time_measure
 
-    def __str__(self):
-        return f"{self.time_measure:.4f}s"
+    @property
+    def diff_time_str(self): return str(self)
 
-    def __repr__(self):
-        return str(self)
+    def __str__(self): return f"{self.time_measure:.4f}s"
+
+    def __repr__(self): return str(self)
 
 
 def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
@@ -132,6 +130,18 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
     return args, args_text_list
 
 
+def log_and_crash(fatal_string: str) -> None:
+    import inspect
+    caller_frame_record = inspect.stack()[1]  # 0 represents this line
+    # 1 represents line at caller
+    frame = caller_frame_record[0]
+    info = inspect.getframeinfo(frame)
+    fatal_string = f"SETUP ERROR:{fatal_string} FILE:{info.filename}:{info.lineno} F:{info.function}"
+    dnn_log_helper.log_info_detail(fatal_string)
+    dnn_log_helper.end_log_file()
+    raise RuntimeError(fatal_string)
+
+
 def equal(rhs: torch.Tensor, lhs: torch.Tensor, threshold: float = None) -> bool:
     """ Compare based or not in a threshold, if threshold is none then it is equal comparison    """
     try:
@@ -159,10 +169,10 @@ def compare_classification(output_tensor: torch.tensor,
     output_errors = 0
     # # FIXME: FI debug
     # # Simulate a non critical error
-    # output_tensor[34, 0] *= 0.9
-    # # Simulate a critical error
+    output_tensor[34, 0] *= 0.9
+    # Simulate a critical error
     # output_tensor[55, 0] = 39304
-    # Shape SDC
+    # # Shape SDC
     # output_tensor = torch.reshape(output_tensor, (4, 3200))
 
     # ------------ Check the size of the tensors
@@ -209,22 +219,9 @@ def compare_classification(output_tensor: torch.tensor,
     return output_errors
 
 
-def log_and_crash(fatal_string: str) -> None:
-    import inspect
-    caller_frame_record = inspect.stack()[1]  # 0 represents this line
-    # 1 represents line at caller
-    frame = caller_frame_record[0]
-    info = inspect.getframeinfo(frame)
-    fatal_string = f"SETUP ERROR:{fatal_string} FILE:{info.filename}:{info.lineno} F:{info.function}"
-    dnn_log_helper.log_info_detail(fatal_string)
-    dnn_log_helper.end_log_file()
-    raise RuntimeError(fatal_string)
-
-
 def main():
     # Defining a timer
     timer = Timer()
-    timer.tic()
     # Disable all torch grad
     torch.set_grad_enabled(mode=False)
     args, args_text_list = parse_args()
@@ -253,23 +250,23 @@ def main():
     input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
                                             test_sample=test_sample, download_dataset=download_dataset)
     timer.toc()
-
+    input_load_time = timer.diff_time_str
     # Terminal console
     main_logger_name = str(os.path.basename(__file__)).replace(".py", "")
     terminal_logger = console_logger.ColoredLogger(main_logger_name) if args.disableconsolelog is False else None
 
-    if terminal_logger:
-        terminal_logger.debug("\n".join(args_text_list))
-        terminal_logger.debug(f"Time necessary to load the inputs: {timer}")
-
     # Load if it is not a gold generating op
     golden = dict(prob_list=list(), top_k_labels=list())
+    timer.tic()
     if generate is False:
-        timer.tic()
         golden = torch.load(gold_path)
-        timer.toc()
-        if terminal_logger:
-            terminal_logger.debug(f"Time necessary to load the golden outputs: {timer}")
+    timer.toc()
+    golden_load_diff_time = timer.diff_time_str
+
+    if terminal_logger:
+        terminal_logger.debug("\n".join(args_text_list))
+        terminal_logger.debug(f"Time necessary to load the inputs: {input_load_time}")
+        terminal_logger.debug(f"Time necessary to load the golden outputs: {golden_load_diff_time}")
 
     # Main setup loop
     setup_iteration = 0
@@ -283,8 +280,11 @@ def main():
             dnn_log_helper.end_iteration()
             timer.toc()
             kernel_time = timer.diff_time
-
+            # Always copy to CPU
+            timer.tic()
             probabilities = dnn_output.to("cpu")
+            timer.toc()
+            copy_to_cpu_time = timer.diff_time
             # Then compare the golden with the output
             timer.tic()
             errors = 0
@@ -295,6 +295,7 @@ def main():
                                                 batch_id=batch_id,
                                                 top_k=configs.CLASSIFICATION_CRITICAL_TOP_K,
                                                 output_logger=terminal_logger)
+                total_errors += errors
             else:
                 golden["prob_list"].append(probabilities)
                 golden["top_k_labels"].append(
@@ -302,19 +303,13 @@ def main():
                         [torch.topk(output_batch, k=configs.CLASSIFICATION_CRITICAL_TOP_K).indices.squeeze(0)
                          for output_batch in dnn_output])
                 )
-            total_errors += errors
             timer.toc()
-
-            # Printing timing information
-            if terminal_logger:
-                comparison_time = timer.diff_time
-                time_pct = (comparison_time / (comparison_time + kernel_time)) * 100.0
-                iteration_out = f"It:{setup_iteration:<3} batch_id:{batch_id:<3} inference time:{kernel_time:.5f}, "
-                iteration_out += f"gold compare time:{comparison_time:.5f} ({time_pct:.1f}%) errors:{errors}"
-                terminal_logger.debug(iteration_out)
+            comparison_time = timer.diff_time
 
             # Reload all the memories after error
             if total_errors != 0:
+                if terminal_logger:
+                    terminal_logger.info("RELOADING THE MODEL AND THE INPUTS AFTER ERROR")
                 del input_list
                 del model
                 model = load_model(args=args)
@@ -322,6 +317,15 @@ def main():
                 model = model.to(configs.DEVICE)
                 input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
                                                         test_sample=test_sample, download_dataset=download_dataset)
+
+            # Printing timing information
+            if terminal_logger:
+                wasted_time = comparison_time + copy_to_cpu_time
+                time_pct = (wasted_time / (comparison_time + kernel_time + copy_to_cpu_time)) * 100.0
+                iteration_out = f"It:{setup_iteration:<3} batch_id:{batch_id:<3} inference time:{kernel_time:.5f}, "
+                iteration_out += f"compare time:{comparison_time:.5f} copy time:{copy_to_cpu_time:.5f} "
+                iteration_out += f"({time_pct:.1f}%) errors:{errors}"
+                terminal_logger.debug(iteration_out)
 
         setup_iteration += 1
 
