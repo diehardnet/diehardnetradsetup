@@ -134,10 +134,13 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
 
 def equal(rhs: torch.Tensor, lhs: torch.Tensor, threshold: float = None) -> bool:
     """ Compare based or not in a threshold, if threshold is none then it is equal comparison    """
-    if threshold:
-        return bool(torch.all(torch.le(torch.abs(torch.subtract(rhs, lhs)), threshold)))
-    else:
-        return bool(torch.equal(rhs, lhs))
+    try:
+        if threshold:
+            return bool(torch.all(torch.le(torch.abs(torch.subtract(rhs, lhs)), threshold)))
+        else:
+            return bool(torch.equal(rhs, lhs))
+    except RuntimeError as re:
+        log_and_crash(fatal_string=f"Comparison error:{re}")
 
 
 def compare_classification(output_tensor: torch.tensor,
@@ -154,28 +157,27 @@ def compare_classification(output_tensor: torch.tensor,
         )
 
     output_errors = 0
-    output_infos = 0
-    # FIXME: FI debug
-    # Simulate a non critical error
-    output_tensor[34, 0] *= 0.9
-
-    # Simulate a critical error
-    output_tensor[34, 0] = 39304
+    # # FIXME: FI debug
+    # # Simulate a non critical error
+    # output_tensor[34, 0] *= 0.9
+    # # Simulate a critical error
+    # output_tensor[34, 0] = 39304
+    # Shape SDC
+    # output_tensor = torch.reshape(output_tensor, (4, 3200))
 
     # ------------ Check the size of the tensors
     if output_tensor.shape != golden_tensor.shape:
-        output_infos += 1
-        error_detail = f"shape-diff g:{golden_tensor.shape} o:{output_tensor.shape}"
+        info_detail = f"shape-diff g:{golden_tensor.shape} o:{output_tensor.shape}"
         if output_logger:
-            output_logger.error(error_detail)
-        dnn_log_helper.log_error_detail(error_detail)
+            output_logger.error(info_detail)
+        dnn_log_helper.log_info_detail(info_detail)
 
     # Iterate over the batches
     for img_id, (output_batch, golden_batch, golden_batch_label) in enumerate(
             zip(output_tensor, golden_tensor, golden_top_k_labels)):
         # using the same approach as the detection, compare only the positions that differ
         if equal(rhs=golden_batch, lhs=output_batch, threshold=configs.CLASSIFICATION_ABS_THRESHOLD) is False:
-            # ------------ Critical error checking
+            # ------------ Critical error checking ---------------------------------------------------------------------
             if output_logger:
                 output_logger.error(f"batch:{batch_id} Not equal output tensors")
 
@@ -186,23 +188,21 @@ def compare_classification(output_tensor: torch.tensor,
                 # Both are integers, and log only if it is feasible
                 if tpk_found != tpk_gold and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
                     output_errors += 1
-                    error_detail = f"batch:{batch_id} critical--img:{img_id} i:{i} g:{tpk_gold:.6e} o:{tpk_found}"
+                    error_detail_ctr = f"batch:{batch_id} critical--img:{img_id} i:{i} g:{tpk_gold:.6e} o:{tpk_found}"
                     if output_logger:
-                        output_logger.error(error_detail)
-                    dnn_log_helper.log_error_detail(error_detail)
+                        output_logger.error(error_detail_ctr)
+                    dnn_log_helper.log_error_detail(error_detail_ctr)
 
-            # ------------ Check error on the whole output
+            # ------------ Check error on the whole output -------------------------------------------------------------
             for i, (gold, found) in enumerate(zip(golden_batch, output_batch)):
                 diff = abs(gold - found)
                 if diff > configs.CLASSIFICATION_ABS_THRESHOLD and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
                     output_errors += 1
-                    error_detail = f"batch:{batch_id} img:{img_id} i:{i} g:{gold:.6e} o:{found:.6e}"
+                    error_detail_out = f"batch:{batch_id} img:{img_id} i:{i} g:{gold:.6e} o:{found:.6e}"
                     if output_logger:
-                        output_logger.error(error_detail)
-                    dnn_log_helper.log_error_detail(error_detail)
+                        output_logger.error(error_detail_out)
+                    dnn_log_helper.log_error_detail(error_detail_out)
 
-    if output_infos != 0:
-        dnn_log_helper.log_info_count(info_count=output_infos)
     if output_errors != 0:
         dnn_log_helper.log_error_count(error_count=output_errors)
 
@@ -289,7 +289,6 @@ def main():
             timer.tic()
             errors = 0
             if generate is False:
-                print(probabilities.shape)
                 errors = compare_classification(output_tensor=probabilities,
                                                 golden_tensor=golden["prob_list"][batch_id],
                                                 golden_top_k_labels=golden["top_k_labels"][batch_id],
