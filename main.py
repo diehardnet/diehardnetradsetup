@@ -2,6 +2,8 @@
 import argparse
 import logging
 import os
+import time
+
 import torch
 import torchvision
 from typing import Tuple, List
@@ -10,8 +12,27 @@ import yaml
 import configs
 import console_logger
 import dnn_log_helper
-from configs import Timer
 from pytorch_scripts.utils import build_model
+
+
+class Timer:
+    time_measure = 0
+
+    def tic(self):
+        self.time_measure = time.time()
+
+    def toc(self):
+        self.time_measure = time.time() - self.time_measure
+
+    @property
+    def diff_time(self):
+        return self.time_measure
+
+    def __str__(self):
+        return f"{self.time_measure:.4f}s"
+
+    def __repr__(self):
+        return str(self)
 
 
 def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
@@ -43,11 +64,10 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
 
 
 def load_model(args: argparse.Namespace):
-    # It is a mobile net or another
-    model = None
+    # It is a mobile net or common resnet
     if args.name == "RepVGGA2Cifar10" or args.name == "RepVGGA2Cifar100":
         model = torch.hub.load("chenyaofo/pytorch-cifar-models", args.ckpt, pretrained=True)
-    elif args.name in configs.ALL_DNNS:
+    else:
         # Build model (Resnet only up to now)
         optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
         n_classes = configs.CLASSES[args.dataset]
@@ -59,8 +79,6 @@ def load_model(args: argparse.Namespace):
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['state_dict'])
         model = model.model
-    else:
-        log_and_crash(fatal_string="incorrect DNN name")
     return model
 
 
@@ -89,12 +107,8 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
     # parser = argparse.ArgumentParser(description='PyTorch DNN radiation setup')
     parser.add_argument('--iterations', default=int(1e12), help="Iterations to run forever", type=int)
     parser.add_argument('--testsamples', default=100, help="Test samples to be used in the test.", type=int)
-
-    parser.add_argument('--batchsize', default=1,
-                        help="Batches to process in parallel. Test samples must be multiple of batch size", type=int)
     parser.add_argument('--downloaddataset', default=False, action="store_true",
                         help="Set to download the dataset, default is to not download. Needs internet.")
-
     parser.add_argument('--generate', default=False, action="store_true", help="Set this flag to generate the gold")
     parser.add_argument('--disableconsolelog', default=False, action="store_true",
                         help="Set this flag disable console logging")
@@ -106,9 +120,9 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
     # Check if the model is correct
     if args.name not in configs.ALL_DNNS:
         parser.print_help()
-        raise ValueError("Not the correct model")
+        raise ValueError(f"Not the correct model {args.name}, valids are:" + ", ".join(configs.ALL_DNNS))
 
-    if args.testsamples % args.batchsize != 0:
+    if args.testsamples % args.batch_size != 0:
         raise ValueError("Test samples should be multiple of batch size")
     # Check if it is only to generate the gold values
     if args.generate:
@@ -142,6 +156,9 @@ def compare_classification(output_tensor: torch.tensor,
 
     output_errors = 0
     # Iterate over the batches
+    # FIXME: FI debug
+    print(output_tensor[34].shape)
+    output_tensor[34, 0] = 39304
     for img_id, (output_batch, golden_batch, golden_batch_label) in enumerate(
             zip(output_tensor, golden_tensor, golden_top_k_labels)):
         # using the same approach as the detection, compare only the positions that differ
@@ -213,7 +230,7 @@ def main():
     iterations = args.iterations
     gold_path = args.goldpath
     disable_console_logger = args.disableconsolelog
-    batch_size = args.batchsize
+    batch_size = args.batch_size
     test_sample = args.testsamples
     data_dir = args.datadir
     dataset = args.dataset
@@ -266,6 +283,7 @@ def main():
             timer.tic()
             errors = 0
             if generate is False:
+                print(probabilities.shape)
                 errors = compare_classification(output_tensor=probabilities,
                                                 golden_tensor=golden["prob_list"][batch_id],
                                                 golden_top_k_labels=golden["top_k_labels"][batch_id],

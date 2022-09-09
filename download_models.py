@@ -1,14 +1,12 @@
 #!/usr/bin/python3
 
 import os
+from configs import MODEL_LINKS
 
-PYTORCH_MODELS = {
-
-}
-tf_models = "data/tf_models"
+tf_models = "data/models"
 if os.path.isdir(tf_models) is False:
     os.mkdir(tf_models)
-for m, link in PYTORCH_MODELS.items():
+for m, link in MODEL_LINKS.items():
     final_path = f"{tf_models}/{m}"
     tar_file = final_path + ".tar.gz"
     if os.path.isfile(tar_file):
