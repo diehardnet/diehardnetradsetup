@@ -159,9 +159,9 @@ def compare_classification(output_tensor: torch.tensor,
     output_errors = 0
     # # FIXME: FI debug
     # # Simulate a non critical error
-    # output_tensor[34, 0] *= 0.9
+    output_tensor[34, 0] *= 0.9
     # # Simulate a critical error
-    # output_tensor[34, 0] = 39304
+    output_tensor[55, 0] = 39304
     # Shape SDC
     # output_tensor = torch.reshape(output_tensor, (4, 3200))
 
@@ -184,11 +184,11 @@ def compare_classification(output_tensor: torch.tensor,
             # Check if there is a Critical error
             top_k_batch_label_flatten = torch.topk(output_batch, k=top_k).indices.squeeze(0).flatten()
             golden_batch_label_flatten = golden_batch_label.flatten()
-            for i, tpk_found, tpk_gold in enumerate(zip(golden_batch_label_flatten, top_k_batch_label_flatten)):
+            for i, (tpk_found, tpk_gold) in enumerate(zip(golden_batch_label_flatten, top_k_batch_label_flatten)):
                 # Both are integers, and log only if it is feasible
                 if tpk_found != tpk_gold and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
                     output_errors += 1
-                    error_detail_ctr = f"batch:{batch_id} critical--img:{img_id} i:{i} g:{tpk_gold:.6e} o:{tpk_found}"
+                    error_detail_ctr = f"batch:{batch_id} critical-img:{img_id} i:{i} g:{tpk_gold:.6e} o:{tpk_found}"
                     if output_logger:
                         output_logger.error(error_detail_ctr)
                     dnn_log_helper.log_error_detail(error_detail_ctr)
