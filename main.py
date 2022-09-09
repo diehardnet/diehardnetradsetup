@@ -167,13 +167,16 @@ def compare_classification(output_tensor: torch.tensor,
         )
 
     output_errors = 0
-    # # FIXME: FI debug
-    # # Simulate a non critical error
-    output_tensor[34, 0] *= 0.9
-    # Simulate a critical error
-    # output_tensor[55, 0] = 39304
-    # # Shape SDC
-    # output_tensor = torch.reshape(output_tensor, (4, 3200))
+    # global TEST
+    # TEST += 1
+    # if TEST == 100:
+    #     # # FIXME: FI debug
+    #     # # Simulate a non critical error
+    #     output_tensor[34, 0] *= 0.9
+    #     # Simulate a critical error
+    #     # output_tensor[55, 0] = 39304
+    #     # # Shape SDC
+    #     # output_tensor = torch.reshape(output_tensor, (4, 3200))
 
     # ------------ Check the size of the tensors
     if output_tensor.shape != golden_tensor.shape:

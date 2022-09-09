@@ -2,7 +2,7 @@
 all: test generate
 
 TEST_SAMPLES=1024
-ITERATIONS=10
+ITERATIONS=200
 
 generate:
 	./main.py --iterations $(ITERATIONS) \
