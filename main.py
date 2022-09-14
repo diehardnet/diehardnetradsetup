@@ -78,8 +78,7 @@ def load_model(args: argparse.Namespace):
                             order=args.order, activation=args.activation, affine=args.affine)
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['state_dict'])
-
-    model = model.model
+        model = model.model
     return model
 
 
