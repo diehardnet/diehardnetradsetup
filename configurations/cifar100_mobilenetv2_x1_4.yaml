@@ -1,6 +1,6 @@
 name: cifar100_mobilenetv2_x1_4
 mode: validate
-ckpt: cifar100_mobilenetv2_x1_4-3bbbd6e2.pt
+ckpt: cifar100_mobilenetv2_x1_4-8a269f5e.pt
 dataset: cifar100
 num_gpus: 1
 model: mobilenetv2_x1_4
