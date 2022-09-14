@@ -224,6 +224,13 @@ def compare_classification(output_tensor: torch.tensor,
     return output_errors
 
 
+def forward(batched_input: torch.tensor, model: torch.nn.Module, model_name: str):
+    if model_name in [configs.MobileNetV2x14Cifar10, configs.MobileNetV2x14Cifar100]:
+        return model(batched_input)
+    else:
+        return model(batched_input, inject=False)
+
+
 def main():
     # Defining a timer
     timer = Timer()
@@ -281,7 +288,7 @@ def main():
         for batch_id, batched_input in enumerate(input_list):
             timer.tic()
             dnn_log_helper.start_iteration()
-            dnn_output = model(batched_input, inject=False)
+            dnn_output = forward(batched_input=batched_input, model=model, model_name=args.name)
             dnn_log_helper.end_iteration()
             timer.toc()
             kernel_time = timer.diff_time
