@@ -29,4 +29,4 @@ if os.path.isdir(check_points) is False:
 for m, link in MODEL_LINKS.items():
     final_path = f"{check_points}/{m}"
     if os.path.isfile(final_path) is False:
-        assert os.system(f"wget {link} -O {final_path}"), "Command not successful"
+        assert os.system(f"wget {link} -O {check_points}"), "Command not successful"
