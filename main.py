@@ -62,9 +62,12 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
 
 
 def load_model(args: argparse.Namespace):
+    checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
+
     # It is a mobile net or common resnet
     if args.name in [configs.MobileNetV2x14Cifar10, configs.MobileNetV2x14Cifar100]:
-        model = torch.hub.load("chenyaofo/pytorch-cifar-models", args.ckpt, pretrained=True)
+        # model = torch.hub.load("chenyaofo/pytorch-cifar-models", args.ckpt, pretrained=True)
+        model = torch.load(checkpoint_path)
     else:
         # Build model (Resnet only up to now)
         optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
@@ -73,7 +76,6 @@ def load_model(args: argparse.Namespace):
         model = build_model(model=args.model, n_classes=n_classes, optim_params=optim_params,
                             loss=args.loss, inject_p=args.inject_p,
                             order=args.order, activation=args.activation, affine=args.affine)
-        checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['state_dict'])
         model = model.model
