@@ -1,4 +1,4 @@
-name: c10_mobilenetv2_x1_4
+name: cifar10_mobilenetv2_x1_4
 mode: validate
 ckpt: cifar10_mobilenetv2_x1_4-3bbbd6e2.pt
 dataset: cifar10
