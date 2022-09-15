@@ -19,3 +19,4 @@ error_model: square
 inject_p: !!float 0.75
 inject_epoch: 0
 comment: Uniform noise [0, epoch). Inj each conv and linear layer. square model. p_c [0.3]. No single value injections.
+nan: false

@@ -4,30 +4,21 @@ import os
 
 from configs import *
 
-mobilenetv2_repo = "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2/"
-
-MODEL_LINKS = [
+MOBILE_NET = {
     # CIFAR 10
-    f"{mobilenetv2_repo}/cifar10_mobilenetv2_x1_4-3bbbd6e2.pt",
-    # ResNet44Cifar10: "c10_res44_test_01_bn-relu_base_sgd-epoch=99-val_acc=0.92.ckpt",
-    # DiehardNetRe6Cifar10: "'c10_res44_test_02_bn-relu6_base_sgd-epoch=99-val_acc=0.93.ckpt",
-    # DiehardNetTrainWCifar10: "c10_res44_test_02_bn-relu6_sgd-epoch=99-val_acc=0.93.ckpt",
-    # DiehardNetOrderICifar10: "c10_res44_test_02_relu6-bn_sgd-epoch=99-val_acc=0.91.ckpt",
-    # DiehardNetNanFilCifar10: None,
+    MobileNetV2x14Cifar10: "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2"
+                           "/cifar10_mobilenetv2_x1_4-3bbbd6e2.pt",
     # CIFAR 100
-    f"{mobilenetv2_repo}/cifar100_mobilenetv2_x1_4-8a269f5e.pt",
-    # ResNet44Cifar100: "c100_res44_test_01_bn-relu_base_sgd_9-epoch=99-val_acc=0.70.ckpt",
-    # DiehardNetRe6Cifar100: "c100_res44_test_02_bn-relu6_base_sgd-epoch=99-val_acc=0.70.ckpt",
-    # DiehardNetTrainWCifar100: "c100_res44_test_02_bn-relu6_sgd-epoch=99-val_acc=0.70.ckpt",
-    # DiehardNetOrderICifar100: "c100_res44_test_02_relu6-bn_sgd-epoch=99-val_acc=0.69.ckpt",
-    # DiehardNetNanFilCifar100: None,
-]
+    MobileNetV2x14Cifar100: "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2"
+                            "/cifar100_mobilenetv2_x1_4-8a269f5e.pt",
+}
 check_points = "data/checkpoints"
 if os.path.isdir(check_points) is False:
     os.mkdir(check_points)
 
-for link in MODEL_LINKS:
+for link in MOBILE_NET:
     final_path = f"{check_points}/{os.path.basename(link)}"
 
     if os.path.isfile(final_path) is False:
         assert os.system(f"wget {link} -P {check_points}") == 0, "Command not successful"
+
