@@ -138,7 +138,7 @@ def log_and_crash(fatal_string: str) -> None:
     # 1 represents line at caller
     frame = caller_frame_record[0]
     info = inspect.getframeinfo(frame)
-    fatal_string = f"SETUP ERROR:{fatal_string} FILE:{info.filename}:{info.lineno} F:{info.function}"
+    fatal_string = f"SETUP_ERROR:{fatal_string} FILE:{info.filename}:{info.lineno} F:{info.function}"
     dnn_log_helper.log_info_detail(fatal_string)
     dnn_log_helper.end_log_file()
     raise RuntimeError(fatal_string)
@@ -151,8 +151,8 @@ def equal(rhs: torch.Tensor, lhs: torch.Tensor, threshold: float = None) -> bool
             return bool(torch.all(torch.le(torch.abs(torch.subtract(rhs, lhs)), threshold)))
         else:
             return bool(torch.equal(rhs, lhs))
-    except RuntimeError as re:
-        log_and_crash(fatal_string=f"Comparison error:{re}")
+    except Exception as e:
+        log_and_crash(fatal_string=f"Equals error:{e}")
 
 
 def compare_classification(output_tensor: torch.tensor,
@@ -187,36 +187,39 @@ def compare_classification(output_tensor: torch.tensor,
             output_logger.error(info_detail)
         dnn_log_helper.log_info_detail(info_detail)
 
-    # Iterate over the batches
-    for img_id, (output_batch, golden_batch, golden_batch_label) in enumerate(
-            zip(output_tensor, golden_tensor, golden_top_k_labels)):
-        # using the same approach as the detection, compare only the positions that differ
-        if equal(rhs=golden_batch, lhs=output_batch, threshold=configs.CLASSIFICATION_ABS_THRESHOLD) is False:
-            # ------------ Critical error checking ---------------------------------------------------------------------
-            if output_logger:
-                output_logger.error(f"batch:{batch_id} Not equal output tensors")
+    try:
+        # Iterate over the batches
+        for img_id, (output_batch, golden_batch, golden_batch_label) in enumerate(
+                zip(output_tensor, golden_tensor, golden_top_k_labels)):
+            # using the same approach as the detection, compare only the positions that differ
+            if equal(rhs=golden_batch, lhs=output_batch, threshold=configs.CLASSIFICATION_ABS_THRESHOLD) is False:
+                # ------------ Critical error checking ---------------------------------------------------------------------
+                if output_logger:
+                    output_logger.error(f"batch:{batch_id} Not equal output tensors")
 
-            # Check if there is a Critical error
-            top_k_batch_label_flatten = torch.topk(output_batch, k=top_k).indices.squeeze(0).flatten()
-            golden_batch_label_flatten = golden_batch_label.flatten()
-            for i, (tpk_found, tpk_gold) in enumerate(zip(golden_batch_label_flatten, top_k_batch_label_flatten)):
-                # Both are integers, and log only if it is feasible
-                if tpk_found != tpk_gold and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
-                    output_errors += 1
-                    error_detail_ctr = f"batch:{batch_id} critical-img:{img_id} i:{i} g:{tpk_gold:.6e} o:{tpk_found}"
-                    if output_logger:
-                        output_logger.error(error_detail_ctr)
-                    dnn_log_helper.log_error_detail(error_detail_ctr)
+                # Check if there is a Critical error
+                top_k_batch_label_flatten = torch.topk(output_batch, k=top_k).indices.squeeze(0).flatten()
+                golden_batch_label_flatten = golden_batch_label.flatten()
+                for i, (tpk_found, tpk_gold) in enumerate(zip(golden_batch_label_flatten, top_k_batch_label_flatten)):
+                    # Both are integers, and log only if it is feasible
+                    if tpk_found != tpk_gold and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
+                        output_errors += 1
+                        error_detail_ctr = f"batch:{batch_id} critical-img:{img_id} i:{i} g:{tpk_gold:.6e} o:{tpk_found}"
+                        if output_logger:
+                            output_logger.error(error_detail_ctr)
+                        dnn_log_helper.log_error_detail(error_detail_ctr)
 
-            # ------------ Check error on the whole output -------------------------------------------------------------
-            for i, (gold, found) in enumerate(zip(golden_batch, output_batch)):
-                diff = abs(gold - found)
-                if diff > configs.CLASSIFICATION_ABS_THRESHOLD and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
-                    output_errors += 1
-                    error_detail_out = f"batch:{batch_id} img:{img_id} i:{i} g:{gold:.6e} o:{found:.6e}"
-                    if output_logger:
-                        output_logger.error(error_detail_out)
-                    dnn_log_helper.log_error_detail(error_detail_out)
+                # ------------ Check error on the whole output -------------------------------------------------------------
+                for i, (gold, found) in enumerate(zip(golden_batch, output_batch)):
+                    diff = abs(gold - found)
+                    if diff > configs.CLASSIFICATION_ABS_THRESHOLD and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
+                        output_errors += 1
+                        error_detail_out = f"batch:{batch_id} img:{img_id} i:{i} g:{gold:.6e} o:{found:.6e}"
+                        if output_logger:
+                            output_logger.error(error_detail_out)
+                        dnn_log_helper.log_error_detail(error_detail_out)
+    except Exception as e:
+        log_and_crash(fatal_string=f"Comparison error:{e}")
 
     if output_errors != 0:
         dnn_log_helper.log_error_count(error_count=output_errors)
@@ -225,60 +228,67 @@ def compare_classification(output_tensor: torch.tensor,
 
 
 def forward(batched_input: torch.tensor, model: torch.nn.Module, model_name: str):
-    if model_name in [configs.MobileNetV2x14Cifar10, configs.MobileNetV2x14Cifar100]:
-        return model(batched_input)
-    else:
-        return model(batched_input, inject=False)
+    try:
+        if model_name in [configs.MobileNetV2x14Cifar10, configs.MobileNetV2x14Cifar100]:
+            return model(batched_input)
+        else:
+            return model(batched_input, inject=False)
+    except Exception as e:
+        log_and_crash(fatal_string=f"Forward error:{e}")
 
 
 def main():
-    # Defining a timer
-    timer = Timer()
     # Disable all torch grad
     torch.set_grad_enabled(mode=False)
     args, args_text_list = parse_args()
     # Starting the setup
     generate = args.generate
     dnn_log_helper.set_iter_interval_print(30)
+    args_text_list.append(f"GPU:{torch.cuda.get_device_name()}")
     dnn_log_helper.start_setup_log_file(framework_name="PyTorch", args_conf=args_text_list,
                                         dnn_name=args.name.strip("_"), generate=generate)
     if torch.cuda.is_available() is False:
         log_and_crash(fatal_string=f"Device {configs.DEVICE} not available.")
+    try:
+        # Defining a timer
+        timer = Timer()
+        batch_size = args.batch_size
+        test_sample = args.testsamples
+        data_dir = args.datadir
+        dataset = args.dataset
+        download_dataset = args.downloaddataset
+        gold_path = args.goldpath
+        iterations = args.iterations
 
-    batch_size = args.batch_size
-    test_sample = args.testsamples
-    data_dir = args.datadir
-    dataset = args.dataset
-    download_dataset = args.downloaddataset
-    gold_path = args.goldpath
-    iterations = args.iterations
+        # Load the model
+        model = load_model(args=args)
+        model.eval()
+        model = model.to(configs.DEVICE)
+        # First step is to load the inputs in the memory
+        timer.tic()
+        input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
+                                                test_sample=test_sample, download_dataset=download_dataset)
+        timer.toc()
+        input_load_time = timer.diff_time_str
+        # Terminal console
+        main_logger_name = str(os.path.basename(__file__)).replace(".py", "")
+        terminal_logger = console_logger.ColoredLogger(main_logger_name) if args.disableconsolelog is False else None
 
-    # Load the model
-    model = load_model(args=args)
-    model.eval()
-    model = model.to(configs.DEVICE)
-    # First step is to load the inputs in the memory
-    timer.tic()
-    input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
-                                            test_sample=test_sample, download_dataset=download_dataset)
-    timer.toc()
-    input_load_time = timer.diff_time_str
-    # Terminal console
-    main_logger_name = str(os.path.basename(__file__)).replace(".py", "")
-    terminal_logger = console_logger.ColoredLogger(main_logger_name) if args.disableconsolelog is False else None
+        # Load if it is not a gold generating op
+        golden = dict(prob_list=list(), top_k_labels=list())
+        timer.tic()
+        if generate is False:
+            golden = torch.load(gold_path)
+        timer.toc()
+        golden_load_diff_time = timer.diff_time_str
 
-    # Load if it is not a gold generating op
-    golden = dict(prob_list=list(), top_k_labels=list())
-    timer.tic()
-    if generate is False:
-        golden = torch.load(gold_path)
-    timer.toc()
-    golden_load_diff_time = timer.diff_time_str
-
-    if terminal_logger:
-        terminal_logger.debug("\n".join(args_text_list))
-        terminal_logger.debug(f"Time necessary to load the inputs: {input_load_time}")
-        terminal_logger.debug(f"Time necessary to load the golden outputs: {golden_load_diff_time}")
+        if terminal_logger:
+            terminal_logger.debug("\n".join(args_text_list))
+            terminal_logger.debug(f"Time necessary to load the inputs: {input_load_time}")
+            terminal_logger.debug(f"Time necessary to load the golden outputs: {golden_load_diff_time}")
+    except Exception as e:
+        log_and_crash(fatal_string=f"Initialization error:{e}")
+        assert False
 
     # Main setup loop
     setup_iteration = 0
@@ -320,15 +330,18 @@ def main():
 
             # Reload all the memories after error
             if total_errors != 0:
-                if terminal_logger:
-                    terminal_logger.info("RELOADING THE MODEL AND THE INPUTS AFTER ERROR")
-                del input_list
-                del model
-                model = load_model(args=args)
-                model.eval()
-                model = model.to(configs.DEVICE)
-                input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
-                                                        test_sample=test_sample, download_dataset=download_dataset)
+                try:
+                    if terminal_logger:
+                        terminal_logger.info("RELOADING THE MODEL AND THE INPUTS AFTER ERROR")
+                    del input_list
+                    del model
+                    model = load_model(args=args)
+                    model.eval()
+                    model = model.to(configs.DEVICE)
+                    input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
+                                                            test_sample=test_sample, download_dataset=download_dataset)
+                except Exception as e:
+                    log_and_crash(fatal_string=f"Reloading error:{e}")
 
             # Printing timing information
             if terminal_logger:

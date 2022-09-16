@@ -12,7 +12,6 @@ CONFIG_FILE = "/etc/radiation-benchmarks.conf"
 DISABLE_CONSOLE_LOGGING = False
 BATCH_SIZE = 1
 ITERATIONS = int(1e12)
-USE_TF_LITE = False
 DOWNLOAD_MODELS = False
 
 DNN_MODELS = {}
@@ -35,6 +34,7 @@ def main():
     if DOWNLOAD_MODELS:
         print("Download all the models")
         os.system("./download_models.py")
+
     current_directory = os.getcwd()
     for dnn_model, config_vals in DNN_MODELS.items():
         dnn_type = config_vals["type"]
