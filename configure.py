@@ -60,13 +60,13 @@ def main():
         json_file_name = f"{jsons_path}/{default_file_name}.json"
         data_dir = f"{current_directory}/data"
         gold_path = f"{data_dir}/{default_file_name}.pt"
-        checkpoint_dir = f"{current_directory}/configurations"
-
+        checkpoint_dir = f"{data_dir}/checkpoints"
+        config_path = f"{current_directory}/configurations/{dnn_model}"
         parameters = [
             f"{current_directory}/{script_name}",
             f"--iterations {ITERATIONS}",
             f"--testsamples {TEST_SAMPLES}",
-            f"--config {dnn_model}",
+            f"--config {config_path}",
             f"--checkpointdir {checkpoint_dir}",
             f"--datadir {data_dir}",
             f"--goldpath {gold_path}",
