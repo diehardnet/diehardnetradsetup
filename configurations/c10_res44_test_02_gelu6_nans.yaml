@@ -18,5 +18,4 @@ seed: 0
 error_model: square
 inject_p: !!float 0.75
 inject_epoch: 0
-comment: Gelu6 and nan filter
 nan: true

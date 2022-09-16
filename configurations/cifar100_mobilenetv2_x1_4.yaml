@@ -5,4 +5,3 @@ dataset: cifar100
 num_gpus: 1
 model: mobilenetv2_x1_4
 batch_size: 128
-comment: Extracted from https://github.com/chenyaofo/pytorch-cifar-models
