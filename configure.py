@@ -10,7 +10,7 @@ from pathlib import Path
 
 CONFIG_FILE = "/etc/radiation-benchmarks.conf"
 ITERATIONS = int(1e12)
-TEST_SAMPLES = 128 * 100
+TEST_SAMPLES = 128 * 50
 DOWNLOAD_MODELS = False
 
 DNN_MODELS = {
