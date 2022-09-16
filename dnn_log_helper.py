@@ -20,7 +20,7 @@ def end_iteration() -> None:
 def start_setup_log_file(framework_name: str, args_conf: list, dnn_name: str, generate: bool) -> None:
     global __NOT_GOLDEN_GENERATION
     __NOT_GOLDEN_GENERATION = not generate
-    dnn_log_header = f"framework:{framework_name} topk:{configs.CLASSIFICATION_CRITICAL_TOP_K}" + " ".join(args_conf)
+    dnn_log_header = f"framework:{framework_name} topk:{configs.CLASSIFICATION_CRITICAL_TOP_K} " + " ".join(args_conf)
     if __NOT_GOLDEN_GENERATION:
         bench_name = f"{framework_name}-{dnn_name}"
         log_helper.start_log_file(bench_name, dnn_log_header)

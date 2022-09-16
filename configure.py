@@ -8,6 +8,8 @@ import time
 from socket import gethostname
 from pathlib import Path
 
+TEST_JSONS = False
+
 CONFIG_FILE = "/etc/radiation-benchmarks.conf"
 ITERATIONS = int(1e12)
 TEST_SAMPLES = 128 * 50
@@ -31,7 +33,6 @@ DNN_MODELS = {
     "cifar100_mobilenetv2_x1_4.yaml",
     "cifar10_mobilenetv2_x1_4.yaml"
 }
-TEST_JSONS = False
 
 
 def main():
