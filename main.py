@@ -173,7 +173,7 @@ def compare_classification(output_tensor: torch.tensor,
     # TEST += 1
     # if TEST == 100:
     #     # # FIXME: FI debug
-    #     # # Simulate a non critical error
+    #     # # Simulate a non-critical error
     #     output_tensor[34, 0] *= 0.9
     #     # Simulate a critical error
     #     # output_tensor[55, 0] = 39304
