@@ -31,7 +31,7 @@ DNN_MODELS = {
     "c10_res44_test_02_bn-relu6.yaml",
     "c10_res44_test_02_relu6-bn.yaml",
     "c10_res44_test_02_gelu6_nans.yaml",
-    "c10_res44_test_02_relu6-bn_nanfilter.yaml"
+    "c10_res44_test_02_relu6-bn_nanfilter.yaml",
 
     # Mobile net v2
     "cifar100_mobilenetv2_x1_4.yaml",
