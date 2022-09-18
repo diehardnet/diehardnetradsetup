@@ -56,10 +56,7 @@ def main():
 
     df = pd.DataFrame(data_list)
     df = df.fillna(0)
-
-    print(df[(df["sdc"] != 0) | (df["critical_sdc"] != 0)])
-    print(df[(df["critical_sdc"] == 1) & (df["sdc"] == 0)])
-    print(df[df["critical_sdc"] == 1])
+    df.to_csv("parsed_logs.csv", index=False)
 
 
 if __name__ == '__main__':
