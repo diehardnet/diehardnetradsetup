@@ -141,7 +141,10 @@ def log_and_crash(fatal_string: str) -> None:
     frame = caller_frame_record[0]
     info = inspect.getframeinfo(frame)
     dnn_log_helper.log_info_detail(f"SETUP_ERROR:{fatal_string} FILE:{info.filename}:{info.lineno} F:{info.function}")
-    dnn_log_helper.log_info_detail(traceback.format_exc())
+    traceback_str = traceback.format_exc()
+    # It is better to always show the exception
+    print(traceback_str)
+    dnn_log_helper.log_info_detail(traceback_str)
     dnn_log_helper.end_log_file()
     sys.exit(1)
 
