@@ -7,16 +7,6 @@ from libLogHelper.build import log_helper
 __LOGGING_ACTIVE = False
 
 
-def start_iteration() -> None:
-    if __LOGGING_ACTIVE:
-        log_helper.start_iteration()
-
-
-def end_iteration() -> None:
-    if __LOGGING_ACTIVE:
-        log_helper.end_iteration()
-
-
 def start_setup_log_file(framework_name: str, args_conf: list, dnn_name: str, activate_logging: bool) -> None:
     global __LOGGING_ACTIVE
     __LOGGING_ACTIVE = activate_logging
@@ -26,6 +16,17 @@ def start_setup_log_file(framework_name: str, args_conf: list, dnn_name: str, ac
         log_helper.start_log_file(bench_name, dnn_log_header)
         log_helper.set_max_errors_iter(configs.MAXIMUM_ERRORS_PER_ITERATION)
         log_helper.set_max_infos_iter(configs.MAXIMUM_INFOS_PER_ITERATION)
+        log_helper.set_iter_interval_print(configs.ITERATION_INTERVAL_LOG_HELPER_PRINT)
+
+
+def start_iteration() -> None:
+    if __LOGGING_ACTIVE:
+        log_helper.start_iteration()
+
+
+def end_iteration() -> None:
+    if __LOGGING_ACTIVE:
+        log_helper.end_iteration()
 
 
 def end_log_file() -> None:
@@ -46,23 +47,3 @@ def log_error_detail(error_detail: str) -> None:
 def log_error_count(error_count: int) -> None:
     if __LOGGING_ACTIVE:
         log_helper.log_error_count(error_count)
-
-
-def log_info_count(info_count: int) -> None:
-    if __LOGGING_ACTIVE:
-        log_helper.log_info_count(info_count)
-
-
-def set_max_errors_iter(max_errors) -> int:
-    if __LOGGING_ACTIVE:
-        return log_helper.set_max_errors_iter(max_errors)
-
-
-def set_max_infos_iter(max_infos) -> int:
-    if __LOGGING_ACTIVE:
-        return log_helper.set_max_infos_iter(max_infos)
-
-
-def set_iter_interval_print(interval) -> int:
-    if __LOGGING_ACTIVE:
-        return log_helper.set_iter_interval_print(interval)
