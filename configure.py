@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-
+import argparse
 import configparser
 import glob
 import json
@@ -8,13 +8,9 @@ import time
 from socket import gethostname
 from pathlib import Path
 
-TEST_JSONS = False
-
 CONFIG_FILE = "/etc/radiation-benchmarks.conf"
 ITERATIONS = int(1e12)
 TEST_SAMPLES = 128 * 50
-DOWNLOAD_MODELS = False
-DOWNLOAD_DATASET = False
 
 DNN_MODELS = {
     # Diehardnet
@@ -40,7 +36,7 @@ DNN_MODELS = {
 }
 
 
-def main():
+def configure(download_datasets: bool, download_models: bool):
     try:
         config = configparser.RawConfigParser()
         config.read(CONFIG_FILE)
@@ -54,7 +50,7 @@ def main():
     if os.path.isdir(jsons_path) is False:
         os.mkdir(jsons_path)
 
-    if DOWNLOAD_MODELS:
+    if download_models:
         print("Download all the models")
         os.system("./download_models.py")
 
@@ -85,7 +81,7 @@ def main():
             "header": " ".join(execute_parameters)
         }]
 
-        if DOWNLOAD_DATASET:
+        if download_datasets:
             parameters += ["--downloaddataset"]
         generate_cmd = " ".join(parameters + ["--generate"])
         # dump json
@@ -115,8 +111,19 @@ def test_all_jsons(timeout=30):
             os.system(v["killcmd"])
 
 
-if __name__ == "__main__":
-    if TEST_JSONS:
+def main():
+    parser = argparse.ArgumentParser(description='Configure a setup', add_help=False)
+    parser.add_argument('--testjsons', default=False, action="store_true", help="Test the jsons")
+    parser.add_argument('--downloaddataset', default=False, action="store_true", help="Download the datasets")
+    parser.add_argument('--downloadmodels', default=False, action="store_true", help="Download the models")
+
+    args = parser.parse_args()
+
+    if args.testjsons:
         test_all_jsons()
     else:
-        main()
+        configure(download_datasets=args.downloaddataset, download_models=args.downloadmodels)
+
+
+if __name__ == "__main__":
+    main()
