@@ -236,14 +236,14 @@ def forward(batched_input: torch.tensor, model: torch.nn.Module, model_name: str
 
 
 def main():
-    # Disable all torch grad
-    torch.set_grad_enabled(mode=False)
     args, args_text_list = parse_args()
     # Starting the setup
     generate = args.generate
     args_text_list.append(f"GPU:{torch.cuda.get_device_name()}")
     dnn_log_helper.start_setup_log_file(framework_name="PyTorch", args_conf=args_text_list,
                                         dnn_name=args.name.strip("_"), activate_logging=not generate)
+    # Disable all torch grad
+    torch.set_grad_enabled(mode=False)
     if torch.cuda.is_available() is False:
         log_and_crash(fatal_string=f"Device {configs.DEVICE} not available.")
     dev_capability = torch.cuda.get_device_capability()
