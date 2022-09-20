@@ -247,6 +247,9 @@ def main():
                                         dnn_name=args.name.strip("_"), activate_logging=not generate)
     if torch.cuda.is_available() is False:
         log_and_crash(fatal_string=f"Device {configs.DEVICE} not available.")
+    dev_capability = torch.cuda.get_device_capability()
+    if dev_capability[0] < configs.MINIMUM_DEVICE_CAPABILITY:
+        log_and_crash(fatal_string=f"Device cap:{dev_capability} is too old.")
 
     # Defining a timer
     timer = Timer()
