@@ -14,6 +14,7 @@ CONFIG_FILE = "/etc/radiation-benchmarks.conf"
 ITERATIONS = int(1e12)
 TEST_SAMPLES = 128 * 50
 DOWNLOAD_MODELS = False
+DOWNLOAD_DATASET = False
 
 DNN_MODELS = {
     # Diehardnet
@@ -76,6 +77,9 @@ def main():
             f"--datadir {data_dir}",
             f"--goldpath {gold_path}",
         ]
+        if DOWNLOAD_DATASET:
+            parameters += ["--downloaddataset"]
+
         execute_parameters = parameters + ["--disableconsolelog"]
         command_list = [{
             "killcmd": f"pkill -9 -f {script_name}",

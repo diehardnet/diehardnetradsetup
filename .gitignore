@@ -132,3 +132,8 @@ data/
 
 libLogHelper/
 pytorch_scripts/
+parsers/.ipynb_checkpoints
+.ipynb_checkpoints/
+*.csv
+*.ods
+*.xlsx
