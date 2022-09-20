@@ -77,9 +77,6 @@ def main():
             f"--datadir {data_dir}",
             f"--goldpath {gold_path}",
         ]
-        if DOWNLOAD_DATASET:
-            parameters += ["--downloaddataset"]
-
         execute_parameters = parameters + ["--disableconsolelog"]
         command_list = [{
             "killcmd": f"pkill -9 -f {script_name}",
@@ -88,6 +85,8 @@ def main():
             "header": " ".join(execute_parameters)
         }]
 
+        if DOWNLOAD_DATASET:
+            parameters += ["--downloaddataset"]
         generate_cmd = " ".join(parameters + ["--generate"])
         # dump json
         with open(json_file_name, "w") as json_fp:
