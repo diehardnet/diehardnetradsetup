@@ -77,7 +77,7 @@ def configure(download_datasets: bool, download_models: bool):
         command_list = [{
             "killcmd": f"pkill -9 -f {script_name}",
             "exec": " ".join(execute_parameters),
-            "codename": script_name,
+            "codename": default_file_name,
             "header": " ".join(execute_parameters)
         }]
 
