@@ -69,8 +69,9 @@ def load_model(args: argparse.Namespace):
 
     # It is a mobile net or common resnet
     if args.name in [configs.MobileNetV2x14Cifar10, configs.MobileNetV2x14Cifar100]:
-        model = torch.hub.load("chenyaofo/pytorch-cifar-models", args.name, pretrained=False)
-        model.load_state_dict(torch.load(checkpoint_path))
+        # model = torch.hub.load("chenyaofo/pytorch-cifar-models", args.name, pretrained=False)
+        # model.load_state_dict(torch.load(checkpoint_path))
+        model = torch.jit.load(checkpoint_path).eval().to(configs.DEVICE)
     else:
         # Build model (Resnet only up to now)
         optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
@@ -296,6 +297,7 @@ def main():
             timer.tic()
             dnn_log_helper.start_iteration()
             dnn_output = forward(batched_input=batched_input, model=model, model_name=args.name)
+            torch.cuda.synchronize(device=configs.DEVICE)
             dnn_log_helper.end_iteration()
             timer.toc()
             kernel_time = timer.diff_time
