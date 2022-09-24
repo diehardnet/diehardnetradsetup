@@ -44,7 +44,7 @@ def parse_log_file(log_path: str) -> List[dict]:
                     if critical_sdc:
                         curr_data["critical_sdc"] = 1
                         critical_sdc = False
-
+                    data_list.append(curr_data)
         return data_list
 
 
@@ -56,7 +56,7 @@ def main():
             path = os.path.join(subdir, file)
             new_line = parse_log_file(log_path=path)
             if new_line:
-                data_list.append(new_line)
+                data_list.extend(new_line)
 
     df = pd.DataFrame(data_list)
     df = df.fillna(0)
