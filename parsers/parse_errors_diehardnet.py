@@ -12,7 +12,7 @@ def parse_args() -> argparse.Namespace:
     """ Parse the args and return an args namespace and the tostring from the args    """
     parser = argparse.ArgumentParser(description='PyTorch DNN radiation parser', add_help=False)
     # parser = argparse.ArgumentParser(description='PyTorch DNN radiation setup')
-    parser.add_argument('--logdir', help="Path to the directory that contains the logs")
+    parser.add_argument('--logdir', help="Path to the directory that contains the logs", required=True)
 
     args, remaining_argv = parser.parse_known_args()
 
@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
 
 def parse_log_file(log_path: str) -> Union[dict, None]:
     # ...log/2022_09_15_16_00_43_PyTorch-c100_res44_test_02_relu6-bn_200_epochs_ECC_OFF_carolinria.log
-    pattern = r".*log/(\d+)_(\d+)_(\d+)_(\d+)_(\d+)_(\d+)_PyTorch-(\S+)_ECC_(\S+)_(\S+).log"
+    pattern = r".*/(\d+)_(\d+)_(\d+)_(\d+)_(\d+)_(\d+)_(\S+)_ECC_(\S+)_(\S+).log"
     m = re.match(pattern, log_path)
     if m:
         year, month, day, hour, minute, seconds, config, ecc, hostname = m.groups()
