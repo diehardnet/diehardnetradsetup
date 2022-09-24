@@ -113,13 +113,14 @@ def test_all_jsons(timeout=30):
 
 def main():
     parser = argparse.ArgumentParser(description='Configure a setup', add_help=False)
-    parser.add_argument('--testjsons', default=False, action="store_true", help="Test the jsons")
+    parser.add_argument('--testjsons', default=0,
+                        help="How many seconds to test the jsons, if 0 (default) it does the configure", type=int)
     parser.add_argument('--downloaddataset', default=False, action="store_true", help="Download the datasets")
     parser.add_argument('--downloadmodels', default=False, action="store_true", help="Download the models")
 
     args = parser.parse_args()
 
-    if args.testjsons:
+    if args.testjsons != 0:
         test_all_jsons()
     else:
         configure(download_datasets=args.downloaddataset, download_models=args.downloadmodels)
