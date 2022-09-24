@@ -1,11 +1,12 @@
 #!/usr/bin/python3
 import argparse
+import copy
 import datetime
 import os
 import re
 
 import pandas as pd
-from typing import Union
+from typing import Union, List
 
 
 def parse_args() -> argparse.Namespace:
@@ -19,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def parse_log_file(log_path: str) -> Union[dict, None]:
+def parse_log_file(log_path: str) -> List[dict]:
     # ...log/2022_09_15_16_00_43_PyTorch-c100_res44_test_02_relu6-bn_200_epochs_ECC_OFF_carolinria.log
     pattern = r".*/(\d+)_(\d+)_(\d+)_(\d+)_(\d+)_(\d+)_(\S+)_ECC_(\S+)_(\S+).log"
     m = re.match(pattern, log_path)
@@ -28,20 +29,23 @@ def parse_log_file(log_path: str) -> Union[dict, None]:
         year, month, day, hour, minute, seconds = [int(i) for i in [year, month, day, hour, minute, seconds]]
         start_dt = datetime.datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=seconds)
         data_dict = dict(start_dt=start_dt, config=config, ecc=ecc, hostname=hostname)
+        data_list = list()
+        critical_sdc = False
         with open(log_path) as log_fp:
             for line in log_fp:
-                if "SDC" in line or "ERR" in line:
-                    data_dict["sdc"] = 1
-                    sdc_m = re.match(r"#SDC Ite:(\d+) KerTime:(\S+) AccTime:(\S+) KerErr:(\d+) AccErr:(\d+)", line)
-                    if sdc_m:
-                        it, ker_time, acc_time, ker_err, acc_err = sdc_m.groups()
-                        data_dict.update(
-                            dict(it=it, ker_time=float(ker_time), acc_time=float(acc_time), ker_err=ker_err,
-                                 acc_err=acc_err))
                 if "critical-img" in line:
-                    data_dict["critical_sdc"] = 1
+                    critical_sdc = True
+                sdc_m = re.match(r"#SDC Ite:(\d+) KerTime:(\S+) AccTime:(\S+) KerErr:(\d+) AccErr:(\d+)", line)
+                if sdc_m:
+                    it, ker_time, acc_time, ker_err, acc_err = sdc_m.groups()
+                    curr_data = copy.deepcopy(data_dict)
+                    curr_data.update(dict(it=it, ker_time=float(ker_time), acc_time=float(acc_time), ker_err=ker_err,
+                                          acc_err=acc_err, sdc=1, critical_sdc=0))
+                    if critical_sdc:
+                        curr_data["critical_sdc"] = 1
+                        critical_sdc = False
 
-        return data_dict
+        return data_list
 
 
 def main():
