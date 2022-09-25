@@ -121,7 +121,7 @@ def main():
     args = parser.parse_args()
 
     if args.testjsons != 0:
-        test_all_jsons()
+        test_all_jsons(timeout=args.testjsons)
     else:
         configure(download_datasets=args.downloaddataset, download_models=args.downloadmodels)
 
