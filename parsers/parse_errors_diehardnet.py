@@ -55,7 +55,7 @@ def main():
     args = parse_args()
     data_list = list()
     for subdir, dirs, files in os.walk(args.logdir):
-        if any([i in subdir for i in ["carolp", "carola"]]):
+        if any([i in subdir for i in ["carolp", "carola", "carolm"]]):
             for file in files:
                 path = os.path.join(subdir, file)
                 new_line = parse_log_file(log_path=path)
