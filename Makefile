@@ -1,6 +1,6 @@
-DIEHARDNET_PATH = /home/carol/git_research/diehardnetradsetup
+DIEHARDNET_PATH = /home/carol/diehardnetradsetup
 DATA_DIR = $(DIEHARDNET_PATH)/data
-
+CONFIG_NAME = c100_res44_test_02_gelu6_nans.yaml
 CHECKPOINTS = $(DATA_DIR)/checkpoints
 
 YAML_FILE = $(DIEHARDNET_PATH)/configurations/$(CONFIG_NAME)
