@@ -7,33 +7,11 @@ import os.path
 import time
 from socket import gethostname
 from pathlib import Path
+from configs import ALL_DNNS
 
 CONFIG_FILE = "/etc/radiation-benchmarks.conf"
 ITERATIONS = int(1e12)
 TEST_SAMPLES = 128 * 50
-
-DNN_MODELS = {
-    # Diehardnet
-    # Cifar 100
-    "c100_res44_test_01_bn-relu_base.yaml",
-    "c100_res44_test_02_bn-relu6.yaml",
-    "c100_res44_test_02_relu6-bn.yaml",
-    "c100_res44_test_02_bn-relu6_base.yaml",
-    "c100_res44_test_02_gelu6_nans.yaml",
-    "c100_res44_test_02_relu6-bn_nanfilter.yaml",
-
-    # Cifar 10
-    "c10_res44_test_02_bn-relu6_base.yaml",
-    "c10_res44_test_01_bn-relu_base.yaml",
-    "c10_res44_test_02_bn-relu6.yaml",
-    "c10_res44_test_02_relu6-bn.yaml",
-    "c10_res44_test_02_gelu6_nans.yaml",
-    "c10_res44_test_02_relu6-bn_nanfilter.yaml",
-
-    # Mobile net v2
-    "cifar100_mobilenetv2_x1_4.yaml",
-    "cifar10_mobilenetv2_x1_4.yaml"
-}
 
 
 def configure(download_datasets: bool, download_models: bool):
@@ -56,7 +34,7 @@ def configure(download_datasets: bool, download_models: bool):
 
     current_directory = os.getcwd()
     script_name = "main.py"
-    for dnn_model in DNN_MODELS:
+    for dnn_model in ALL_DNNS:
         # Default filename will build the other names
         default_file_name = dnn_model.replace(".yaml", "")
         json_file_name = f"{jsons_path}/{default_file_name}.json"

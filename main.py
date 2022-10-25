@@ -37,7 +37,7 @@ class Timer:
 
 
 def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
-                 download_dataset: bool) -> torch.tensor:
+                 download_dataset: bool) -> Tuple[torch.tensor, torch.tensor]:
     transform = torchvision.transforms.Compose([torchvision.transforms.ToTensor(),
                                                 torchvision.transforms.Normalize(
                                                     mean=[0.485, 0.456, 0.406],
@@ -67,22 +67,23 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
 def load_model(args: argparse.Namespace):
     checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
 
-    # It is a mobile net or common resnet
-    if args.name in [configs.MobileNetV2x14Cifar10, configs.MobileNetV2x14Cifar100]:
-        # model = torch.hub.load("chenyaofo/pytorch-cifar-models", args.name, pretrained=False)
-        # model.load_state_dict(torch.load(checkpoint_path))
-        model = torch.jit.load(checkpoint_path).eval().to(configs.DEVICE)
-    else:
-        # Build model (Resnet only up to now)
-        optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
-        n_classes = configs.CLASSES[args.dataset]
-
-        model = build_model(model=args.model, n_classes=n_classes, optim_params=optim_params,
-                            loss=args.loss, inject_p=args.inject_p,
-                            order=args.order, activation=args.activation, affine=args.affine)
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint['state_dict'])
-        model = model.model
+    # # It is a mobile net or common resnet
+    # if args.name in [configs.MobileNetV2x14Cifar10, configs.MobileNetV2x14Cifar100]:
+    #     # model = torch.hub.load("chenyaofo/pytorch-cifar-models", args.name, pretrained=False)
+    #     # model.load_state_dict(torch.load(checkpoint_path))
+    #     model = torch.jit.load(checkpoint_path).eval().to(configs.DEVICE)
+    # else:
+    # Build model (Resnet only up to now)
+    optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
+    n_classes = configs.CLASSES[args.dataset]
+    # model='hard_resnet20', n_classes=10, optim_params={}, loss='bce', error_model='random',
+    # inject_p=0.1, inject_epoch=0, order='relu-bn', activation='relu', nan=False, affine=True
+    model = build_model(model=args.model, n_classes=n_classes, optim_params=optim_params,
+                        loss=args.loss, inject_p=args.inject_p, order=args.order, activation=args.activation,
+                        affine=bool(args.affine), nan=bool(args.nan))
+    checkpoint = torch.load(checkpoint_path)
+    model.load_state_dict(checkpoint['state_dict'])
+    model = model.model
     return model
 
 
@@ -122,9 +123,9 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
 
     args = parser.parse_args()
     # Check if the model is correct
-    if args.name not in configs.ALL_DNNS:
-        parser.print_help()
-        raise ValueError(f"Not the correct model {args.name}, valids are:" + ", ".join(configs.ALL_DNNS))
+    # if args.name not in configs.ALL_DNNS:
+    #     parser.print_help()
+    #     raise ValueError(f"Not the correct model {args.name}, valids are:" + ", ".join(configs.ALL_DNNS))
 
     if args.testsamples % args.batch_size != 0:
         raise ValueError("Test samples should be multiple of batch size")
@@ -229,11 +230,23 @@ def compare_classification(output_tensor: torch.tensor,
     return output_errors
 
 
+def check_dnn_accuracy(predicted: list, ground_truth: torch.tensor,
+                       output_logger: logging.Logger = None) -> None:
+    correct, gt_count = 0, 0
+    predicted_cpu = [i.to("cpu") for i in predicted]
+    ground_truth_cpu = ground_truth.to("cpu")
+    for pred, gt in zip(predicted_cpu, ground_truth_cpu):
+        gt_count += gt.shape[0]
+        correct += torch.sum(torch.eq(pred, gt))
+    if output_logger:
+        output_logger.debug(f"Correct predicted samples:{correct} - ({(correct / gt_count) * 100:.2f}%)")
+
+
 def forward(batched_input: torch.tensor, model: torch.nn.Module, model_name: str):
-    if model_name in [configs.MobileNetV2x14Cifar10, configs.MobileNetV2x14Cifar100]:
-        return model(batched_input)
-    else:
-        return model(batched_input, inject=False)
+    # if model_name in [configs.MobileNetV2x14Cifar10, configs.MobileNetV2x14Cifar100]:
+    #     return model(batched_input)
+    # else:
+    return model(batched_input, inject=False)
 
 
 def main():
@@ -352,6 +365,7 @@ def main():
 
     if generate is True:
         torch.save(golden, gold_path)
+        check_dnn_accuracy(predicted=golden["top_k_labels"], ground_truth=input_labels, output_logger=terminal_logger)
     if terminal_logger:
         terminal_logger.debug("Finish computation.")
 
