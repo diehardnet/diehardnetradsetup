@@ -6,7 +6,7 @@ import os
 import re
 
 import pandas as pd
-from typing import Union, List
+from typing import List, Tuple
 
 
 def parse_args() -> argparse.Namespace:
@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def parse_log_file(log_path: str) -> List[dict]:
+def parse_log_file(log_path: str) -> Tuple[List[dict], List[str]]:
     # ...log/2022_09_15_16_00_43_PyTorch-c100_res44_test_02_relu6-bn_200_epochs_ECC_OFF_carolinria.log
     pattern = r".*/(\d+)_(\d+)_(\d+)_(\d+)_(\d+)_(\d+)_\S+_ECC_(\S+)_(\S+).log"
     m = re.match(pattern, log_path)
