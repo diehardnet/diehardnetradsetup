@@ -209,7 +209,7 @@ def compare_classification(output_tensor: torch.tensor,
                 # Both are integers, and log only if it is feasible
                 if tpk_found != tpk_gold and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
                     output_errors += 1
-                    error_detail_ctr = f"batch:{batch_id} critical-img:{img_id} i:{i} g:{tpk_gold:.6e} o:{tpk_found}"
+                    error_detail_ctr = f"batch:{batch_id} critical-img:{img_id} i:{i} g:{tpk_gold} o:{tpk_found}"
                     if output_logger:
                         output_logger.error(error_detail_ctr)
                     dnn_log_helper.log_error_detail(error_detail_ctr)
