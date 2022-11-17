@@ -1,23 +1,10 @@
 #!/usr/bin/python3
-import argparse
 import copy
-import datetime
+import os.path
 import re
-from typing import List, Tuple
+from typing import List
 
 import pandas as pd
-
-
-def parse_args() -> argparse.Namespace:
-    """ Parse the args and return an args namespace and the tostring from the args    """
-    parser = argparse.ArgumentParser(description='PyTorch DNN radiation parser', add_help=False)
-    # parser = argparse.ArgumentParser(description='PyTorch DNN radiation setup')
-    parser.add_argument('--radlogdir', help="Path to the directory that contains the logs", required=True)
-    parser.add_argument('--nvbitfilogdir', help="Path to the directory that contains the logs", required=True)
-
-    args, remaining_argv = parser.parse_known_args()
-
-    return args
 
 
 def parse_log_file(log_path: str, fi_model: str, group: str) -> List[dict]:
@@ -71,8 +58,13 @@ def get_log_file_name(fi_dir, config, fault_it, fi_model, group):
     raise ValueError(config_stdout)
 
 
+def execute_cmd(cmd):
+    print("EXECUTING:", cmd)
+    if os.system(cmd) != 0:
+        raise ValueError(f"Could not execute {cmd}")
+
+
 def main():
-    args = parse_args()
     data_list = list()
     fi_models = dict(FLIP_SINGLE_BIT=0, RANDOM_VALUE=2, ZERO_VALUE=3, WARP_RANDOM_VALUE=4, WARP_ZERO_VALUE=5)
     diehardnet_configs = [
@@ -91,24 +83,50 @@ def main():
     ]
     faults_per_fm = 400
     fp32, fp32_str = 1, "fp32"
+    data_location = "/home/fernando/Dropbox/temp/nvbitfi_ml_data/data_dsn2023"
+    tar_files = {
+        "logs_400_injections_c10_dhn_0511": ["c10"],
+        "logs_400_injections_c100_dhn_1611": ["c100"],
+        "logs_400_injections_c100_dhn_1711": ["c100"]
+    }
 
-    for dataset in ["c10"]:  # ,  "c100"]:
-        for diehardnet_version in diehardnet_configs:
-            config = f"{dataset}{diehardnet_version}"
-            for fi_model_str, fi_model in fi_models.items():
-                for it in range(1, faults_per_fm + 1):
-                    log_file = get_log_file_name(fi_dir=args.nvbitfilogdir, config=config, fault_it=it,
-                                                 fi_model=fi_model, group=fp32)
-                    full_log_file = f"{args.radlogdir}/{log_file}"
-                    new_line = parse_log_file(log_path=full_log_file, fi_model=fi_model_str, group=fp32_str)
-                    if new_line:
-                        data_list.extend(new_line)
+    rad_log_dir_base = "var/radiation-benchmarks/log"
+    nvbit_fi_log_dir_base = "logs"
+    tmp_path = "/tmp/diehardnet"
+
+    if os.path.isdir(tmp_path) is False:
+        os.mkdir(tmp_path)
+
+    execute_cmd(f"rm -rf {tmp_path}/*")
+
+    for tar_file in tar_files:
+        tar_full_path = f"{data_location}/{tar_file}.tar.gz"
+        new_path = f"{tmp_path}/{tar_file}"
+        if os.path.isdir(new_path) is False:
+            os.mkdir(new_path)
+        execute_cmd(f"rm -rf {new_path}/*")
+
+        tar_cmd = f"tar xzf {tar_full_path} -C {new_path}"
+        execute_cmd(tar_cmd)
+        datasets = tar_files[tar_file]
+        for dataset in datasets:
+            for diehardnet_version in diehardnet_configs:
+                config = f"{dataset}{diehardnet_version}"
+                for fi_model_str, fi_model in fi_models.items():
+                    for it in range(1, faults_per_fm + 1):
+                        rad_log_dir = f"{new_path}/{rad_log_dir_base}"
+                        nvbit_fi_log_dir = f"{new_path}/{nvbit_fi_log_dir_base}"
+                        log_file = get_log_file_name(fi_dir=nvbit_fi_log_dir, config=config, fault_it=it,
+                                                     fi_model=fi_model, group=fp32)
+                        full_log_file = f"{rad_log_dir}/{log_file}"
+                        new_line = parse_log_file(log_path=full_log_file, fi_model=fi_model_str, group=fp32_str)
+                        if new_line:
+                            data_list.extend(new_line)
 
     df = pd.DataFrame(data_list)
     df = df.fillna(0)
     print(df["config"].value_counts())
-
-    df.to_csv("parsed_logs_fi.csv", index=False)
+    df.to_csv(f"../data/parsed_logs_fi.csv", index=False)
 
 
 if __name__ == '__main__':
