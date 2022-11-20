@@ -29,13 +29,21 @@ DIEHARDNET_CONFIGS = [
     "_res44_test_02_gelu6_nans",
 ]
 
+DIEHARDNET_TRANS_LEARNING_CONFIGS = [
+    # Baseline
+    "imagenet1k_v2_base",
+
+]
+
 ALL_DNNS = [f"{dataset}{config}.yaml" for dataset in ["c10", "c100"] for config in DIEHARDNET_CONFIGS]
 
 
 CIFAR10 = "cifar10"
 CIFAR100 = "cifar100"
+IMAGENET = "imagenet"
 
 CLASSES = {
     CIFAR10: 10,
-    CIFAR100: 100
+    CIFAR100: 100,
+    IMAGENET: 1000
 }

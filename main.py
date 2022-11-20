@@ -1,15 +1,15 @@
 #!/usr/bin/python3
 import argparse
+import inspect
 import logging
 import os
 import sys
 import time
-import inspect
 import traceback
+from typing import Tuple, List
 
 import torch
 import torchvision
-from typing import Tuple, List
 import yaml
 
 import configs
@@ -48,6 +48,8 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
     elif dataset == configs.CIFAR100:
         test_set = torchvision.datasets.cifar.CIFAR100(root=data_dir, download=download_dataset, train=False,
                                                        transform=transform)
+    elif dataset == configs.IMAGENET:
+        test_set = torchvision.datasets.imagenet.ImageNet(root=data_dir, train=False, transform=transform)
     else:
         raise ValueError(f"Incorrect dataset {dataset}")
 
@@ -67,23 +69,24 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
 def load_model(args: argparse.Namespace):
     checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
 
-    # # It is a mobile net or common resnet
-    # if args.name in [configs.MobileNetV2x14Cifar10, configs.MobileNetV2x14Cifar100]:
-    #     # model = torch.hub.load("chenyaofo/pytorch-cifar-models", args.name, pretrained=False)
-    #     # model.load_state_dict(torch.load(checkpoint_path))
-    #     model = torch.jit.load(checkpoint_path).eval().to(configs.DEVICE)
-    # else:
-    # Build model (Resnet only up to now)
-    optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
-    n_classes = configs.CLASSES[args.dataset]
-    # model='hard_resnet20', n_classes=10, optim_params={}, loss='bce', error_model='random',
-    # inject_p=0.1, inject_epoch=0, order='relu-bn', activation='relu', nan=False, affine=True
-    model = build_model(model=args.model, n_classes=n_classes, optim_params=optim_params,
-                        loss=args.loss, inject_p=args.inject_p, order=args.order, activation=args.activation,
-                        affine=bool(args.affine), nan=bool(args.nan))
-    checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint['state_dict'])
-    model = model.model
+    # First option is the baseline option
+    if args.name in configs.DIEHARDNET_TRANS_LEARNING_CONFIGS[0]:
+        model = torch.hub.load(repo_or_dir='pytorch/vision', model='resnet50',
+                               weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
+    else:
+        # Build model (Resnet only up to now)
+        optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
+        n_classes = configs.CLASSES[args.dataset]
+        # model='hard_resnet20', n_classes=10, optim_params={}, loss='bce', error_model='random',
+        # inject_p=0.1, inject_epoch=0, order='relu-bn', activation='relu', nan=False, affine=True
+        model = build_model(model=args.model, n_classes=n_classes, optim_params=optim_params,
+                            loss=args.loss, inject_p=args.inject_p, order=args.order, activation=args.activation,
+                            affine=bool(args.affine), nan=bool(args.nan))
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['state_dict'])
+        model = model.model
+    model.eval()
+    model = model.to(configs.DEVICE)
     return model
 
 
@@ -276,8 +279,6 @@ def main():
 
     # Load the model
     model = load_model(args=args)
-    model.eval()
-    model = model.to(configs.DEVICE)
     # First step is to load the inputs in the memory
     timer.tic()
     input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
@@ -347,8 +348,6 @@ def main():
                 del input_list
                 del model
                 model = load_model(args=args)
-                model.eval()
-                model = model.to(configs.DEVICE)
                 input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
                                                         test_sample=test_sample, download_dataset=download_dataset)
 

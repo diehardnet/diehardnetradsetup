@@ -2,17 +2,22 @@
 
 import os
 
-from configs import *
+import torch
 
+print(torch.__version__)
 links = [
     # Mobile net
     # CIFAR 10
-    "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2/cifar10_mobilenetv2_x1_4-3bbbd6e2.pt",
-    # CIFAR 100
-    "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2/cifar100_mobilenetv2_x1_4-8a269f5e.pt",
+    # "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2/cifar10_mobilenetv2_x1_4-3bbbd6e2.pt",
+    # # CIFAR 100
+    # "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2/cifar100_mobilenetv2_x1_4-8a269f5e.pt",
 
     # Diehardnet all
-    "https://www.dropbox.com/s/4497lt4a72l9yw3/chipir_2022.tar.gz"
+    "https://www.dropbox.com/s/4497lt4a72l9yw3/chipir_2022.tar.gz",
+
+    # Diehardnet transfer learning
+    "https://download.pytorch.org/models/resnet50-11ad3fa6.pth",
+
 ]
 check_points = "data/checkpoints"
 if os.path.isdir(check_points) is False:
