@@ -35,7 +35,9 @@ DIEHARDNET_TRANS_LEARNING_CONFIGS = [
 
 ]
 
-ALL_DNNS = [f"{dataset}{config}.yaml" for dataset in ["c10", "c100"] for config in DIEHARDNET_CONFIGS]
+DIEHARDNET_CONFIGS = [f"{dataset}{config}.yaml" for dataset in ["c10", "c100"] for config in DIEHARDNET_CONFIGS]
+
+ALL_DNNS = DIEHARDNET_CONFIGS + DIEHARDNET_TRANS_LEARNING_CONFIGS
 
 
 CIFAR10 = "cifar10"

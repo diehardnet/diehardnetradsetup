@@ -15,6 +15,7 @@ import yaml
 import configs
 import console_logger
 import dnn_log_helper
+from configs import DIEHARDNET_TRANS_LEARNING_CONFIGS
 from pytorch_scripts.utils import build_model
 
 
@@ -246,10 +247,10 @@ def check_dnn_accuracy(predicted: list, ground_truth: torch.tensor,
 
 
 def forward(batched_input: torch.tensor, model: torch.nn.Module, model_name: str):
-    # if model_name in [configs.MobileNetV2x14Cifar10, configs.MobileNetV2x14Cifar100]:
-    #     return model(batched_input)
-    # else:
-    return model(batched_input, inject=False)
+    if model_name in DIEHARDNET_TRANS_LEARNING_CONFIGS:
+        return model(batched_input)
+    else:
+        return model(batched_input, inject=False)
 
 
 def main():
