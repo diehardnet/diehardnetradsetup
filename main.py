@@ -186,6 +186,9 @@ def compare_classification(output_tensor: torch.tensor,
     if out_is_cuda or golden_is_cuda:
         log_and_crash(fatal_string=f"Tensors are not on CPU. OUT IS CUDA:{out_is_cuda} GOLDEN IS CUDA:{golden_is_cuda}")
 
+    if ground_truth_labels.is_cuda:
+        log_and_crash(fatal_string=f"Ground truth is on cuda.")
+
     output_errors = 0
     # global TEST
     # TEST += 1
@@ -349,7 +352,7 @@ def main():
                 golden["top_k_labels"].append(
                     torch.tensor(
                         [torch.topk(output_batch, k=configs.CLASSIFICATION_CRITICAL_TOP_K).indices.squeeze(0)
-                         for output_batch in dnn_output])
+                         for output_batch in probabilities])
                 )
             timer.toc()
             comparison_time = timer.diff_time
