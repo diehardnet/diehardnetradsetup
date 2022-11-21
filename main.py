@@ -38,11 +38,15 @@ class Timer:
 
 
 def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
-                 download_dataset: bool) -> Tuple[torch.tensor, torch.tensor]:
-    transform = torchvision.transforms.Compose([torchvision.transforms.ToTensor(),
-                                                torchvision.transforms.Normalize(
-                                                    mean=[0.485, 0.456, 0.406],
-                                                    std=[0.229, 0.224, 0.225])])
+                 download_dataset: bool) -> Tuple[List, List]:
+    transform_resize = (224, 224)
+    if dataset in [configs.CIFAR10, configs.CIFAR100]:
+        transform_resize = (32, 32)
+
+    transform = torchvision.transforms.Compose([torchvision.transforms.Resize(transform_resize),
+                                                torchvision.transforms.ToTensor(),
+                                                torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                                                                 std=[0.229, 0.224, 0.225])])
     if dataset == configs.CIFAR10:
         test_set = torchvision.datasets.cifar.CIFAR10(root=data_dir, download=download_dataset, train=False,
                                                       transform=transform)
@@ -50,7 +54,8 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
         test_set = torchvision.datasets.cifar.CIFAR100(root=data_dir, download=download_dataset, train=False,
                                                        transform=transform)
     elif dataset == configs.IMAGENET:
-        test_set = torchvision.datasets.imagenet.ImageNet(root=data_dir, train=False, transform=transform)
+        test_set = torchvision.datasets.imagenet.ImageNet(root=configs.IMAGENET_DATASET_DIR, transform=transform,
+                                                          split='val')
     else:
         raise ValueError(f"Incorrect dataset {dataset}")
 
@@ -59,10 +64,13 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
                                               shuffle=False, pin_memory=True)
     input_dataset, input_labels = list(), list()
     for inputs, labels in test_loader:
-        input_dataset.append(inputs)
+        # Only the inputs must be in the device
+        input_dataset.append(inputs.to(configs.DEVICE))
         input_labels.append(labels)
-    input_dataset = torch.stack(input_dataset).to(configs.DEVICE)
-    input_labels = torch.stack(input_labels).to(configs.DEVICE)
+    # Fixed, no need to stack if they will only be used in the host side
+    # input_dataset = torch.stack(input_dataset).to(configs.DEVICE)
+    # Fixed, only the input must be in the GPU
+    # input_labels = torch.stack(input_labels).to(configs.DEVICE)
 
     return input_dataset, input_labels
 
@@ -71,9 +79,12 @@ def load_model(args: argparse.Namespace):
     checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
 
     # First option is the baseline option
-    if args.name in configs.DIEHARDNET_TRANS_LEARNING_CONFIGS[0]:
-        model = torch.hub.load(repo_or_dir='pytorch/vision', model='resnet50',
-                               weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
+    if args.name in configs.IMAGENET_1K_V2_BASE:
+        # Better for offline approach
+        model = torchvision.models.resnet50(weights=None)
+        model.load_state_dict(torch.load(checkpoint_path))
+        # model = torch.hub.load(repo_or_dir='pytorch/vision', model='resnet50',
+        #                        weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
     else:
         # Build model (Resnet only up to now)
         optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
@@ -166,6 +177,7 @@ def equal(rhs: torch.Tensor, lhs: torch.Tensor, threshold: float = 0) -> bool:
 def compare_classification(output_tensor: torch.tensor,
                            golden_tensor: torch.tensor,
                            golden_top_k_labels: torch.tensor,
+                           ground_truth_labels: torch.tensor,
                            batch_id: int,
                            top_k: int,
                            output_logger: logging.Logger = None) -> int:
@@ -198,8 +210,8 @@ def compare_classification(output_tensor: torch.tensor,
         dnn_log_helper.log_info_detail(info_detail)
 
     # Iterate over the batches
-    for img_id, (output_batch, golden_batch, golden_batch_label) in enumerate(
-            zip(output_tensor, golden_tensor, golden_top_k_labels)):
+    for img_id, (output_batch, golden_batch, golden_batch_label, ground_truth_label) in enumerate(
+            zip(output_tensor, golden_tensor, golden_top_k_labels, ground_truth_labels)):
         # using the same approach as the detection, compare only the positions that differ
         if equal(rhs=golden_batch, lhs=output_batch, threshold=configs.CLASSIFICATION_ABS_THRESHOLD) is False:
             # ------------ Critical error checking ---------------------------------------------------------------------
@@ -214,6 +226,7 @@ def compare_classification(output_tensor: torch.tensor,
                 if tpk_found != tpk_gold and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
                     output_errors += 1
                     error_detail_ctr = f"batch:{batch_id} critical-img:{img_id} i:{i} g:{tpk_gold} o:{tpk_found}"
+                    error_detail_ctr += f" gt:{ground_truth_label}"
                     if output_logger:
                         output_logger.error(error_detail_ctr)
                     dnn_log_helper.log_error_detail(error_detail_ctr)
@@ -234,12 +247,10 @@ def compare_classification(output_tensor: torch.tensor,
     return output_errors
 
 
-def check_dnn_accuracy(predicted: list, ground_truth: torch.tensor,
+def check_dnn_accuracy(predicted: List[torch.tensor], ground_truth: List[torch.tensor],
                        output_logger: logging.Logger = None) -> None:
     correct, gt_count = 0, 0
-    predicted_cpu = [i.to("cpu") for i in predicted]
-    ground_truth_cpu = ground_truth.to("cpu")
-    for pred, gt in zip(predicted_cpu, ground_truth_cpu):
+    for pred, gt in zip(predicted, ground_truth):
         gt_count += gt.shape[0]
         correct += torch.sum(torch.eq(pred, gt))
     if output_logger:
@@ -328,6 +339,7 @@ def main():
                 errors = compare_classification(output_tensor=probabilities,
                                                 golden_tensor=golden["prob_list"][batch_id],
                                                 golden_top_k_labels=golden["top_k_labels"][batch_id],
+                                                ground_truth_labels=input_labels[batch_id],
                                                 batch_id=batch_id,
                                                 top_k=configs.CLASSIFICATION_CRITICAL_TOP_K,
                                                 output_logger=terminal_logger)

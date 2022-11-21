@@ -15,7 +15,7 @@ endif
 
 all: test generate
 
-TEST_SAMPLES=128
+TEST_SAMPLES=1024
 ITERATIONS=10
 
 generate:
