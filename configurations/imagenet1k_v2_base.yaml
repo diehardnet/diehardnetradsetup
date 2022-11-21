@@ -4,4 +4,4 @@ ckpt: resnet50-11ad3fa6.pth
 dataset: imagenet
 num_gpus: 1
 model: imagenet1k_v2_base
-batch_size: 128
+batch_size: 64

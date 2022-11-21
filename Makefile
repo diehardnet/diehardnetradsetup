@@ -1,9 +1,9 @@
 DIEHARDNET_PATH = /home/carol/diehardnetradsetup
 DATA_DIR = $(DIEHARDNET_PATH)/data
-CONFIG_NAME = imagenet1k_v2_base.yaml
+CONFIG_NAME = imagenet1k_v2_base
 CHECKPOINTS = $(DATA_DIR)/checkpoints
 
-YAML_FILE = $(DIEHARDNET_PATH)/configurations/$(CONFIG_NAME)
+YAML_FILE = $(DIEHARDNET_PATH)/configurations/$(CONFIG_NAME).yaml
 TARGET = main.py
 GOLD_PATH = $(DATA_DIR)/$(CONFIG_NAME).pt
 
