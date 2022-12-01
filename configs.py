@@ -14,7 +14,7 @@ CLASSIFICATION_CRITICAL_TOP_K = 1
 # FORCE the gpu to be present
 DEVICE = "cuda:0"
 
-DIEHARDNET_CONFIGS = [
+DIEHARDNET_CLASSIFICATION_CONFIGS = [
     # Baseline
     "_res44_test_01_bn-relu_base",
     # Baseline + Relu6
@@ -36,9 +36,30 @@ DIEHARDNET_TRANS_LEARNING_CONFIGS = [
 
 ]
 
-DIEHARDNET_CONFIGS = [f"{dataset}{config}.yaml" for dataset in ["c10", "c100"] for config in DIEHARDNET_CONFIGS]
+DIEHARDNET_CLASSIFICATION_CONFIGS = [f"{dataset}{config}.yaml" for dataset in ["c10", "c100"] for config in
+                                     DIEHARDNET_CLASSIFICATION_CONFIGS]
 
-ALL_DNNS = DIEHARDNET_CONFIGS + DIEHARDNET_TRANS_LEARNING_CONFIGS
+# Segmentation DNNs
+DEEPLABV3_RESNET50 = "deep_lab_v3_resnet50"
+
+DIEHARDNET_SEGMENTATION_CONFIGS = [
+    # Baseline
+    DEEPLABV3_RESNET50,
+
+]
+
+# Set the supported goals
+CLASSIFICATION = "classify"
+SEGMENTATION = "segmentation"
+
+DNN_GOAL = {
+    # Classification nets
+    **{k: CLASSIFICATION for k in DIEHARDNET_CLASSIFICATION_CONFIGS + DIEHARDNET_TRANS_LEARNING_CONFIGS},
+    # Segmentation nets
+    **{k: SEGMENTATION for k in DIEHARDNET_SEGMENTATION_CONFIGS}
+}
+
+ALL_DNNS = DIEHARDNET_CLASSIFICATION_CONFIGS + DIEHARDNET_TRANS_LEARNING_CONFIGS
 
 CIFAR10 = "cifar10"
 CIFAR100 = "cifar100"

@@ -1,40 +1,18 @@
 #!/usr/bin/python3
 import argparse
-import inspect
-import logging
 import os
-import sys
-import time
-import traceback
 from typing import Tuple, List
 
 import torch
 import torchvision
 import yaml
 
+import common
 import configs
 import console_logger
 import dnn_log_helper
+from classification_functions import load_model, compare_classification, check_dnn_accuracy
 from configs import DIEHARDNET_TRANS_LEARNING_CONFIGS
-from pytorch_scripts.utils import build_model
-
-
-class Timer:
-    time_measure = 0
-
-    def tic(self): self.time_measure = time.time()
-
-    def toc(self): self.time_measure = time.time() - self.time_measure
-
-    @property
-    def diff_time(self): return self.time_measure
-
-    @property
-    def diff_time_str(self): return str(self)
-
-    def __str__(self): return f"{self.time_measure:.4f}s"
-
-    def __repr__(self): return str(self)
 
 
 def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
@@ -73,33 +51,6 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
     # input_labels = torch.stack(input_labels).to(configs.DEVICE)
 
     return input_dataset, input_labels
-
-
-def load_model(args: argparse.Namespace):
-    checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
-
-    # First option is the baseline option
-    if args.name in configs.IMAGENET_1K_V2_BASE:
-        # Better for offline approach
-        model = torchvision.models.resnet50(weights=None)
-        model.load_state_dict(torch.load(checkpoint_path))
-        # model = torch.hub.load(repo_or_dir='pytorch/vision', model='resnet50',
-        #                        weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
-    else:
-        # Build model (Resnet only up to now)
-        optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
-        n_classes = configs.CLASSES[args.dataset]
-        # model='hard_resnet20', n_classes=10, optim_params={}, loss='bce', error_model='random',
-        # inject_p=0.1, inject_epoch=0, order='relu-bn', activation='relu', nan=False, affine=True
-        model = build_model(model=args.model, n_classes=n_classes, optim_params=optim_params,
-                            loss=args.loss, inject_p=args.inject_p, order=args.order, activation=args.activation,
-                            affine=bool(args.affine), nan=bool(args.nan))
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint['state_dict'])
-        model = model.model
-    model.eval()
-    model = model.to(configs.DEVICE)
-    return model
 
 
 def parse_args() -> Tuple[argparse.Namespace, List[str]]:
@@ -152,114 +103,6 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
     return args, args_text_list
 
 
-def log_and_crash(fatal_string: str) -> None:
-    caller_frame_record = inspect.stack()[1]  # 0 represents this line
-    # 1 represents line at caller
-    frame = caller_frame_record[0]
-    info = inspect.getframeinfo(frame)
-    dnn_log_helper.log_info_detail(f"SETUP_ERROR:{fatal_string} FILE:{info.filename}:{info.lineno} F:{info.function}")
-    traceback_str = traceback.format_exc()
-    # It is better to always show the exception
-    print(traceback_str)
-    dnn_log_helper.log_info_detail(traceback_str)
-    dnn_log_helper.end_log_file()
-    sys.exit(1)
-
-
-def equal(rhs: torch.Tensor, lhs: torch.Tensor, threshold: float = 0) -> bool:
-    """ Compare based or not in a threshold, if threshold is none then it is equal comparison    """
-    if threshold > 0:
-        return bool(torch.all(torch.le(torch.abs(torch.subtract(rhs, lhs)), threshold)))
-    else:
-        return bool(torch.equal(rhs, lhs))
-
-
-def compare_classification(output_tensor: torch.tensor,
-                           golden_tensor: torch.tensor,
-                           golden_top_k_labels: torch.tensor,
-                           ground_truth_labels: torch.tensor,
-                           batch_id: int,
-                           top_k: int,
-                           output_logger: logging.Logger = None) -> int:
-    # Make sure that they are on CPU
-    out_is_cuda, golden_is_cuda = output_tensor.is_cuda, golden_tensor.is_cuda
-    if out_is_cuda or golden_is_cuda:
-        log_and_crash(fatal_string=f"Tensors are not on CPU. OUT IS CUDA:{out_is_cuda} GOLDEN IS CUDA:{golden_is_cuda}")
-
-    if ground_truth_labels.is_cuda:
-        log_and_crash(fatal_string=f"Ground truth is on cuda.")
-
-    output_errors = 0
-    # global TEST
-    # TEST += 1
-    # if TEST == 100:
-    #     # # FIXME: FI debug
-    #     # # Simulate a non-critical error
-    #     output_tensor[34, 0] *= 0.9
-    #     # Simulate a critical error
-    #     # output_tensor[55, 0] = 39304
-    #     # # Shape SDC
-    #     # output_tensor = torch.reshape(output_tensor, (4, 3200))
-
-    # First check if the tensors are equal or not
-    if equal(rhs=output_tensor, lhs=golden_tensor, threshold=configs.CLASSIFICATION_ABS_THRESHOLD) is True:
-        return output_errors
-
-    # ------------ Check the size of the tensors
-    if output_tensor.shape != golden_tensor.shape:
-        info_detail = f"shape-diff g:{golden_tensor.shape} o:{output_tensor.shape}"
-        if output_logger:
-            output_logger.error(info_detail)
-        dnn_log_helper.log_info_detail(info_detail)
-
-    # Iterate over the batches
-    for img_id, (output_batch, golden_batch, golden_batch_label, ground_truth_label) in enumerate(
-            zip(output_tensor, golden_tensor, golden_top_k_labels, ground_truth_labels)):
-        # using the same approach as the detection, compare only the positions that differ
-        if equal(rhs=golden_batch, lhs=output_batch, threshold=configs.CLASSIFICATION_ABS_THRESHOLD) is False:
-            # ------------ Critical error checking ---------------------------------------------------------------------
-            if output_logger:
-                output_logger.error(f"batch:{batch_id} Not equal output tensors")
-
-            # Check if there is a Critical error
-            top_k_batch_label_flatten = torch.topk(output_batch, k=top_k).indices.squeeze(0).flatten()
-            golden_batch_label_flatten = golden_batch_label.flatten()
-            for i, (tpk_found, tpk_gold) in enumerate(zip(golden_batch_label_flatten, top_k_batch_label_flatten)):
-                # Both are integers, and log only if it is feasible
-                if tpk_found != tpk_gold and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
-                    output_errors += 1
-                    error_detail_ctr = f"batch:{batch_id} critical-img:{img_id} i:{i} g:{tpk_gold} o:{tpk_found}"
-                    error_detail_ctr += f" gt:{ground_truth_label}"
-                    if output_logger:
-                        output_logger.error(error_detail_ctr)
-                    dnn_log_helper.log_error_detail(error_detail_ctr)
-
-            # ------------ Check error on the whole output -------------------------------------------------------------
-            for i, (gold, found) in enumerate(zip(golden_batch, output_batch)):
-                diff = abs(gold - found)
-                if diff > configs.CLASSIFICATION_ABS_THRESHOLD and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
-                    output_errors += 1
-                    error_detail_out = f"batch:{batch_id} img:{img_id} i:{i} g:{gold:.6e} o:{found:.6e}"
-                    if output_logger:
-                        output_logger.error(error_detail_out)
-                    dnn_log_helper.log_error_detail(error_detail_out)
-
-    if output_errors != 0:
-        dnn_log_helper.log_error_count(error_count=output_errors)
-
-    return output_errors
-
-
-def check_dnn_accuracy(predicted: List[torch.tensor], ground_truth: List[torch.tensor],
-                       output_logger: logging.Logger = None) -> None:
-    correct, gt_count = 0, 0
-    for pred, gt in zip(predicted, ground_truth):
-        gt_count += gt.shape[0]
-        correct += torch.sum(torch.eq(pred, gt))
-    if output_logger:
-        output_logger.debug(f"Correct predicted samples:{correct} - ({(correct / gt_count) * 100:.2f}%)")
-
-
 def forward(batched_input: torch.tensor, model: torch.nn.Module, model_name: str):
     if model_name in DIEHARDNET_TRANS_LEARNING_CONFIGS:
         return model(batched_input)
@@ -272,18 +115,22 @@ def main():
     # Starting the setup
     generate = args.generate
     args_text_list.append(f"GPU:{torch.cuda.get_device_name()}")
+    # Define DNN goal
+    dnn_goal = configs.DNN_GOAL[args.name]
+
     dnn_log_helper.start_setup_log_file(framework_name="PyTorch", args_conf=args_text_list,
-                                        dnn_name=args.name.strip("_"), activate_logging=not generate)
+                                        dnn_name=args.name.strip("_"), activate_logging=not generate, dnn_goal=dnn_goal)
+
     # Disable all torch grad
     torch.set_grad_enabled(mode=False)
     if torch.cuda.is_available() is False:
-        log_and_crash(fatal_string=f"Device {configs.DEVICE} not available.")
+        dnn_log_helper.log_and_crash(fatal_string=f"Device {configs.DEVICE} not available.")
     dev_capability = torch.cuda.get_device_capability()
     if dev_capability[0] < configs.MINIMUM_DEVICE_CAPABILITY:
-        log_and_crash(fatal_string=f"Device cap:{dev_capability} is too old.")
+        dnn_log_helper.log_and_crash(fatal_string=f"Device cap:{dev_capability} is too old.")
 
     # Defining a timer
-    timer = Timer()
+    timer = common.Timer()
     batch_size = args.batch_size
     test_sample = args.testsamples
     data_dir = args.datadir
@@ -391,4 +238,4 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as main_function_exception:
-        log_and_crash(fatal_string=f"EXCEPTION:{main_function_exception}")
+        dnn_log_helper.log_and_crash(fatal_string=f"EXCEPTION:{main_function_exception}")
