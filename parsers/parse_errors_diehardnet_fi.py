@@ -84,12 +84,15 @@ def main():
     faults_per_fm = 400
     fp32, fp32_str = 1, "fp32"
     data_location = "/home/fernando/Dropbox/temp/nvbitfi_ml_data/data_dsn2023"
-    tar_files = {
+    tar_files_cifar = {
         "logs_400_injections_c10_dhn_0511": ["c10"],
         "logs_400_injections_c100_dhn_1611": ["c100"],
-        "logs_400_injections_c100_dhn_1711": ["c100"]
+        "logs_400_injections_c100_dhn_1711": ["c100"],
     }
-
+    tar_files_imagenet = {
+        "logs_400_injections_imagenet_dhn_2711": ["imagenet"],
+        "logs_400_injections_imagenet_dhn_2711_titan_inria": ["imagenet"]
+    }
     rad_log_dir_base = "var/radiation-benchmarks/log"
     nvbit_fi_log_dir_base = "logs"
     tmp_path = "/tmp/diehardnet"
@@ -99,7 +102,7 @@ def main():
 
     execute_cmd(f"rm -rf {tmp_path}/*")
 
-    for tar_file in tar_files:
+    for tar_file, datasets in tar_files_cifar.items():
         tar_full_path = f"{data_location}/{tar_file}.tar.gz"
         new_path = f"{tmp_path}/{tar_file}"
         if os.path.isdir(new_path) is False:
@@ -108,7 +111,6 @@ def main():
 
         tar_cmd = f"tar xzf {tar_full_path} -C {new_path}"
         execute_cmd(tar_cmd)
-        datasets = tar_files[tar_file]
         for dataset in datasets:
             for diehardnet_version in diehardnet_configs:
                 config = f"{dataset}{diehardnet_version}"
@@ -122,6 +124,27 @@ def main():
                         new_line = parse_log_file(log_path=full_log_file, fi_model=fi_model_str, group=fp32_str)
                         if new_line:
                             data_list.extend(new_line)
+
+    for tar_file, datasets in tar_files_imagenet.items():
+        tar_full_path = f"{data_location}/{tar_file}.tar.gz"
+        new_path = f"{tmp_path}/{tar_file}"
+        if os.path.isdir(new_path) is False:
+            os.mkdir(new_path)
+        execute_cmd(f"rm -rf {new_path}/*")
+
+        tar_cmd = f"tar xzf {tar_full_path} -C {new_path}"
+        execute_cmd(tar_cmd)
+        config = f"imagenet1k_v2_base"
+        for fi_model_str, fi_model in fi_models.items():
+            for it in range(1, faults_per_fm + 1):
+                rad_log_dir = f"{new_path}/{rad_log_dir_base}"
+                nvbit_fi_log_dir = f"{new_path}/{nvbit_fi_log_dir_base}"
+                log_file = get_log_file_name(fi_dir=nvbit_fi_log_dir, config=config, fault_it=it,
+                                             fi_model=fi_model, group=fp32)
+                full_log_file = f"{rad_log_dir}/{log_file}"
+                new_line = parse_log_file(log_path=full_log_file, fi_model=fi_model_str, group=fp32_str)
+                if new_line:
+                    data_list.extend(new_line)
 
     df = pd.DataFrame(data_list)
     df = df.fillna(0)
