@@ -1,41 +1,11 @@
-import argparse
 import logging
 from typing import List
 
 import torch
-import torchvision
 
 import common
 import configs
 import dnn_log_helper
-from pytorch_scripts.utils import build_model
-
-
-def load_model(args: argparse.Namespace) -> torch.Module:
-    checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
-
-    # First option is the baseline option
-    if args.name in configs.IMAGENET_1K_V2_BASE:
-        # Better for offline approach
-        model = torchvision.models.resnet50(weights=None)
-        model.load_state_dict(torch.load(checkpoint_path))
-        # model = torch.hub.load(repo_or_dir='pytorch/vision', model='resnet50',
-        #                        weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
-    else:
-        # Build model (Resnet only up to now)
-        optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
-        n_classes = configs.CLASSES[args.dataset]
-        # model='hard_resnet20', n_classes=10, optim_params={}, loss='bce', error_model='random',
-        # inject_p=0.1, inject_epoch=0, order='relu-bn', activation='relu', nan=False, affine=True
-        model = build_model(model=args.model, n_classes=n_classes, optim_params=optim_params,
-                            loss=args.loss, inject_p=args.inject_p, order=args.order, activation=args.activation,
-                            affine=bool(args.affine), nan=bool(args.nan))
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint['state_dict'])
-        model = model.model
-    model.eval()
-    model = model.to(configs.DEVICE)
-    return model
 
 
 def compare_classification(output_tensor: torch.tensor,
@@ -48,7 +18,8 @@ def compare_classification(output_tensor: torch.tensor,
     # Make sure that they are on CPU
     out_is_cuda, golden_is_cuda = output_tensor.is_cuda, golden_tensor.is_cuda
     if out_is_cuda or golden_is_cuda:
-        dnn_log_helper.log_and_crash(fatal_string=f"Tensors are not on CPU. OUT IS CUDA:{out_is_cuda} GOLDEN IS CUDA:{golden_is_cuda}")
+        dnn_log_helper.log_and_crash(
+            fatal_string=f"Tensors are not on CPU. OUT IS CUDA:{out_is_cuda} GOLDEN IS CUDA:{golden_is_cuda}")
 
     if ground_truth_labels.is_cuda:
         dnn_log_helper.log_and_crash(fatal_string=f"Ground truth is on cuda.")
@@ -122,3 +93,7 @@ def check_dnn_accuracy(predicted: List[torch.tensor], ground_truth: List[torch.t
         correct += torch.sum(torch.eq(pred, gt))
     if output_logger:
         output_logger.debug(f"Correct predicted samples:{correct} - ({(correct / gt_count) * 100:.2f}%)")
+
+
+def copy_output_to_cpu(output: torch.tensor, weights) -> torch.tensor:
+    return output.to('cpu')

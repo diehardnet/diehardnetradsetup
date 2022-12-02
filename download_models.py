@@ -18,6 +18,9 @@ links = [
     # Diehardnet transfer learning
     "https://download.pytorch.org/models/resnet50-11ad3fa6.pth",
 
+    # Deeplav3
+    "https://download.pytorch.org/models/deeplabv3_resnet50_coco-cd0a2569.pth",
+
 ]
 check_points = "data/checkpoints"
 if os.path.isdir(check_points) is False:

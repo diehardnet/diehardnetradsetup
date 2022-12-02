@@ -29,10 +29,10 @@ DIEHARDNET_CLASSIFICATION_CONFIGS = [
     "_res44_test_02_gelu6_nans",
 ]
 
-IMAGENET_1K_V2_BASE = "imagenet1k_v2_base"
+RESNET50_IMAGENET_1K_V2_BASE = "resnet50_imagenet1k_v2_base"
 DIEHARDNET_TRANS_LEARNING_CONFIGS = [
     # Baseline
-    IMAGENET_1K_V2_BASE,
+    RESNET50_IMAGENET_1K_V2_BASE,
 
 ]
 
@@ -40,7 +40,7 @@ DIEHARDNET_CLASSIFICATION_CONFIGS = [f"{dataset}{config}.yaml" for dataset in ["
                                      DIEHARDNET_CLASSIFICATION_CONFIGS]
 
 # Segmentation DNNs
-DEEPLABV3_RESNET50 = "deep_lab_v3_resnet50"
+DEEPLABV3_RESNET50 = "deeplab_v3_resnet50_base"
 
 DIEHARDNET_SEGMENTATION_CONFIGS = [
     # Baseline
@@ -64,6 +64,7 @@ ALL_DNNS = DIEHARDNET_CLASSIFICATION_CONFIGS + DIEHARDNET_TRANS_LEARNING_CONFIGS
 CIFAR10 = "cifar10"
 CIFAR100 = "cifar100"
 IMAGENET = "imagenet"
+COCO = "coco"
 
 CLASSES = {
     CIFAR10: 10,
@@ -72,3 +73,6 @@ CLASSES = {
 }
 
 IMAGENET_DATASET_DIR = "/home/carol/ILSVRC2012"
+COCO_DATASET_DIR = "/home/carol/coco"
+COCO_DATASET_VAL = f"{COCO_DATASET_DIR}/val2017"
+COCO_DATASET_ANNOTATIONS = f"{COCO_DATASET_DIR}/annotations/instances_val2017.json"

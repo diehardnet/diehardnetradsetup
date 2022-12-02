@@ -1,6 +1,8 @@
 DIEHARDNET_PATH = /home/carol/diehardnetradsetup
 DATA_DIR = $(DIEHARDNET_PATH)/data
-CONFIG_NAME = imagenet1k_v2_base
+# CONFIG_NAME = resnet50_imagenet1k_v2_base
+CONFIG_NAME = deeplab3_resnet50_base
+
 CHECKPOINTS = $(DATA_DIR)/checkpoints
 
 YAML_FILE = $(DIEHARDNET_PATH)/configurations/$(CONFIG_NAME).yaml

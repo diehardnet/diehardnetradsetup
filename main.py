@@ -1,30 +1,84 @@
 #!/usr/bin/python3
 import argparse
 import os
+import time
 from typing import Tuple, List
 
 import torch
 import torchvision
 import yaml
 
-import common
+import classification_functions
 import configs
 import console_logger
 import dnn_log_helper
-from classification_functions import load_model, compare_classification, check_dnn_accuracy
-from configs import DIEHARDNET_TRANS_LEARNING_CONFIGS
+import segmentation_functions
+from classification_functions import compare_classification, check_dnn_accuracy
+from pytorch_scripts.utils import build_model
+
+
+class Timer:
+    time_measure = 0
+
+    def tic(self): self.time_measure = time.time()
+
+    def toc(self): self.time_measure = time.time() - self.time_measure
+
+    @property
+    def diff_time(self): return self.time_measure
+
+    @property
+    def diff_time_str(self): return str(self)
+
+    def __str__(self): return f"{self.time_measure:.4f}s"
+
+    def __repr__(self): return str(self)
+
+
+def load_model(args: argparse.Namespace) -> [torch.nn.Module, torchvision.transforms.Compose]:
+    checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
+
+    transform = None
+
+    # First option is the baseline option
+    if args.name in configs.RESNET50_IMAGENET_1K_V2_BASE:
+        # Better for offline approach
+        weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2
+        transform = weights.transforms()
+        model = torchvision.models.resnet50(weights=weights)
+        model.load_state_dict(torch.load(checkpoint_path))
+        # model = torch.hub.load(repo_or_dir='pytorch/vision', model='resnet50',
+        #                        weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
+    elif args.name in configs.DEEPLABV3_RESNET50:
+        # Better for offline approach
+        weights = torchvision.models.segmentation.DeepLabV3_ResNet50_Weights.COCO_WITH_VOC_LABELS_V1
+        transform = weights.transforms()
+        model = torchvision.models.segmentation.deeplabv3_resnet50(weights=weights)
+        model.load_state_dict(torch.load(checkpoint_path))
+    else:
+        # Build model (Resnet only up to now)
+        optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
+        n_classes = configs.CLASSES[args.dataset]
+        # model='hard_resnet20', n_classes=10, optim_params={}, loss='bce', error_model='random',
+        # inject_p=0.1, inject_epoch=0, order='relu-bn', activation='relu', nan=False, affine=True
+        model = build_model(model=args.model, n_classes=n_classes, optim_params=optim_params,
+                            loss=args.loss, inject_p=args.inject_p, order=args.order, activation=args.activation,
+                            affine=bool(args.affine), nan=bool(args.nan))
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['state_dict'])
+        model = model.model
+    model.eval()
+    model = model.to(configs.DEVICE)
+    if transform is None:
+        # Default values for CIFAR 10 and 100
+        transform = torchvision.transforms.Compose(
+            [torchvision.transforms.Resize((32, 32)), torchvision.transforms.ToTensor(),
+             torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+    return model, transform
 
 
 def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
-                 download_dataset: bool) -> Tuple[List, List]:
-    transform_resize = (224, 224)
-    if dataset in [configs.CIFAR10, configs.CIFAR100]:
-        transform_resize = (32, 32)
-
-    transform = torchvision.transforms.Compose([torchvision.transforms.Resize(transform_resize),
-                                                torchvision.transforms.ToTensor(),
-                                                torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                                                 std=[0.229, 0.224, 0.225])])
+                 download_dataset: bool, transform: torchvision.transforms.Compose) -> Tuple[List, List]:
     if dataset == configs.CIFAR10:
         test_set = torchvision.datasets.cifar.CIFAR10(root=data_dir, download=download_dataset, train=False,
                                                       transform=transform)
@@ -34,6 +88,10 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
     elif dataset == configs.IMAGENET:
         test_set = torchvision.datasets.imagenet.ImageNet(root=configs.IMAGENET_DATASET_DIR, transform=transform,
                                                           split='val')
+    elif dataset == configs.COCO:
+        # This is only used when performing det/seg and these models already perform transforms
+        test_set = torchvision.datasets.coco.CocoDetection(root=configs.COCO_DATASET_VAL,
+                                                           annFile=configs.COCO_DATASET_ANNOTATIONS)
     else:
         raise ValueError(f"Incorrect dataset {dataset}")
 
@@ -49,7 +107,7 @@ def load_dataset(batch_size: int, dataset: str, data_dir: str, test_sample: int,
     # input_dataset = torch.stack(input_dataset).to(configs.DEVICE)
     # Fixed, only the input must be in the GPU
     # input_labels = torch.stack(input_labels).to(configs.DEVICE)
-
+    print(input_labels)
     return input_dataset, input_labels
 
 
@@ -86,6 +144,7 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
     parser.add_argument('--goldpath', help="Path to the gold file")
     parser.add_argument('--checkpointdir', help="Path to checkpoint dir")
     parser.add_argument('--datadir', help="Path to data directory that contains the dataset")
+    parser.add_argument('--annotations', help="Path to the file that contains annotations")
 
     args = parser.parse_args()
     # Check if the model is correct
@@ -104,7 +163,7 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
 
 
 def forward(batched_input: torch.tensor, model: torch.nn.Module, model_name: str):
-    if model_name in DIEHARDNET_TRANS_LEARNING_CONFIGS:
+    if model_name in configs.DIEHARDNET_TRANS_LEARNING_CONFIGS + configs.DIEHARDNET_SEGMENTATION_CONFIGS:
         return model(batched_input)
     else:
         return model(batched_input, inject=False)
@@ -130,7 +189,7 @@ def main():
         dnn_log_helper.log_and_crash(fatal_string=f"Device cap:{dev_capability} is too old.")
 
     # Defining a timer
-    timer = common.Timer()
+    timer = Timer()
     batch_size = args.batch_size
     test_sample = args.testsamples
     data_dir = args.datadir
@@ -138,13 +197,15 @@ def main():
     download_dataset = args.downloaddataset
     gold_path = args.goldpath
     iterations = args.iterations
+    dataset_annotations = args.annotations
 
     # Load the model
-    model = load_model(args=args)
+    model, transform = load_model(args=args)
     # First step is to load the inputs in the memory
     timer.tic()
     input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
-                                            test_sample=test_sample, download_dataset=download_dataset)
+                                            test_sample=test_sample, download_dataset=download_dataset,
+                                            transform=transform)
     timer.toc()
     input_load_time = timer.diff_time_str
     # Terminal console
@@ -212,7 +273,8 @@ def main():
                 del model
                 model = load_model(args=args)
                 input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, data_dir=data_dir,
-                                                        test_sample=test_sample, download_dataset=download_dataset)
+                                                        test_sample=test_sample, download_dataset=download_dataset,
+                                                        transform=transform)
 
             # Printing timing information
             if terminal_logger:

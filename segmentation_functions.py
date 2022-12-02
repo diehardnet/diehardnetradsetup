@@ -1,28 +1,13 @@
-import argparse
+import collections
 import logging
 from typing import List
 
 import torch
-import torchvision
+import torchvision.models.segmentation.deeplabv3
 
 import common
 import configs
 import dnn_log_helper
-
-
-def load_model(args: argparse.Namespace) -> torch.Module:
-    checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
-    model = object()
-    if args.name in configs.DEEPLABV3_RESNET50:
-        # Better for offline approach
-        model = torchvision.models.segmentation.deeplabv3_resnet50(weights=None)
-    else:
-        dnn_log_helper.log_and_crash(f"Incorrect DNN configuration {args.name}")
-
-    model.load_state_dict(torch.load(checkpoint_path))
-    model.eval()
-    model = model.to(configs.DEVICE)
-    return model
 
 
 def compare_segmentation(output_tensor: torch.tensor,
@@ -63,3 +48,9 @@ def compare_segmentation(output_tensor: torch.tensor,
 def check_dnn_accuracy(predicted: List[torch.tensor], ground_truth: List[torch.tensor],
                        output_logger: logging.Logger = None) -> None:
     raise NotImplementedError()
+
+
+def copy_output_to_cpu(output: collections.OrderedDict) -> torch.tensor:
+    prediction = output["out"].to('cpu')
+    normalized_masks = prediction.softmax(dim=1)
+    return normalized_masks
