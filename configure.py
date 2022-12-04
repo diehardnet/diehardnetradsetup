@@ -7,11 +7,19 @@ import os.path
 import time
 from socket import gethostname
 from pathlib import Path
-from configs import ALL_DNNS
+import configs
+
+ALL_DNNS = configs.DIEHARDNET_CLASSIFICATION_CONFIGS
+ALL_DNNS += configs.DIEHARDNET_TRANS_LEARNING_CONFIGS
+ALL_DNNS += configs.DIEHARDNET_SEGMENTATION_CONFIGS
 
 CONFIG_FILE = "/etc/radiation-benchmarks.conf"
 ITERATIONS = int(1e12)
-TEST_SAMPLES = 128 * 50
+TEST_SAMPLES = {
+    **{k: 128 * 64 for k in configs.DIEHARDNET_CLASSIFICATION_CONFIGS},
+    **{k: 64 * 16 for k in configs.DIEHARDNET_TRANS_LEARNING_CONFIGS},
+    **{k: 32 * 4 for k in configs.DIEHARDNET_SEGMENTATION_CONFIGS},
+}
 
 
 def configure(download_datasets: bool, download_models: bool):
@@ -30,7 +38,7 @@ def configure(download_datasets: bool, download_models: bool):
 
     if download_models:
         print("Download all the models")
-        os.system("./download_models.py")
+        download_models_process()
 
     current_directory = os.getcwd()
     script_name = "main.py"
@@ -41,14 +49,13 @@ def configure(download_datasets: bool, download_models: bool):
         data_dir = f"{current_directory}/data"
         gold_path = f"{data_dir}/{default_file_name}.pt"
         checkpoint_dir = f"{data_dir}/checkpoints"
-        config_path = f"{current_directory}/configurations/{dnn_model}"
+        config_path = f"{current_directory}/configurations/{dnn_model}.yaml"
         parameters = [
             f"{current_directory}/{script_name}",
             f"--iterations {ITERATIONS}",
-            f"--testsamples {TEST_SAMPLES}",
+            f"--testsamples {TEST_SAMPLES[dnn_model]}",
             f"--config {config_path}",
             f"--checkpointdir {checkpoint_dir}",
-            f"--datadir {data_dir}",
             f"--goldpath {gold_path}",
         ]
         execute_parameters = parameters + ["--disableconsolelog"]
@@ -77,7 +84,7 @@ def configure(download_datasets: bool, download_models: bool):
 def test_all_jsons(timeout=30):
     hostname = gethostname()
     jsons_path = f"data/{hostname}_jsons"
-
+    print("JSONS PATH:", jsons_path)
     for file in glob.glob(rf"{jsons_path}/*.json", recursive=True):
         with open(file, "r") as fp:
             json_data = json.load(fp)
@@ -89,8 +96,43 @@ def test_all_jsons(timeout=30):
             os.system(v["killcmd"])
 
 
+def download_models_process():
+    links = [
+        # Mobile net
+        # CIFAR 10
+        # "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2/cifar10_mobilenetv2_x1_4-3bbbd6e2.pt",
+        # # CIFAR 100
+        # "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2/cifar100_mobilenetv2_x1_4-8a269f5e.pt",
+
+        # Diehardnet all
+        "https://www.dropbox.com/s/4497lt4a72l9yw3/chipir_2022.tar.gz",
+
+        # Diehardnet transfer learning
+        "https://download.pytorch.org/models/resnet50-11ad3fa6.pth",
+
+        # Deeplav3
+        "https://download.pytorch.org/models/deeplabv3_resnet50_coco-cd0a2569.pth",
+
+    ]
+    check_points = "data/checkpoints"
+    if os.path.isdir(check_points) is False:
+        os.mkdir(check_points)
+
+    for link in links:
+        file_name = os.path.basename(link)
+        print(f"Downloading {file_name}")
+        final_path = f"{check_points}/{file_name}"
+
+        if os.path.isfile(final_path) is False:
+            assert os.system(f"wget {link} -P {check_points}") == 0, "Download mobile net weights not successful"
+
+        if ".tar.gz" in file_name:
+            assert os.system(
+                f"tar xzf {final_path} -C {check_points}") == 0, "Extracting the checkpoints not successful"
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Configure a setup', add_help=False)
+    parser = argparse.ArgumentParser(description='Configure a setup', add_help=True)
     parser.add_argument('--testjsons', default=0,
                         help="How many seconds to test the jsons, if 0 (default) it does the configure", type=int)
     parser.add_argument('--downloaddataset', default=False, action="store_true", help="Download the datasets")

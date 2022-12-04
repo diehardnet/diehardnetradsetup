@@ -1,4 +1,4 @@
-name: c10_res44_test_01_bn-relu_base_
+name: c10_res44_test_01_bn-relu_base
 mode: validate
 ckpt: c10_res44_test_01_bn-relu_base_-epoch=99-val_acc=0.90.ckpt
 dataset: cifar10

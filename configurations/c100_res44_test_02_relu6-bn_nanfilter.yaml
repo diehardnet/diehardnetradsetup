@@ -1,4 +1,4 @@
-name: c100_res44_test_02_relu6-bn_200_epochs_nanfilter
+name: c100_res44_test_02_relu6-bn_nanfilter
 mode: validate
 ckpt: c100_res44_test_02_relu6-bn_sgd-epoch=99-val_acc=0.69.ckpt
 dataset: cifar100

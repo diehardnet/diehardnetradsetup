@@ -1,7 +1,7 @@
 DIEHARDNET_PATH = /home/carol/diehardnetradsetup
 DATA_DIR = $(DIEHARDNET_PATH)/data
 # CONFIG_NAME = resnet50_imagenet1k_v2_base
-CONFIG_NAME = deeplab3_resnet50_base
+CONFIG_NAME = deeplabv3_resnet50_base
 
 CHECKPOINTS = $(DATA_DIR)/checkpoints
 
@@ -17,7 +17,7 @@ endif
 
 all: test generate
 
-TEST_SAMPLES=1024
+TEST_SAMPLES=128
 ITERATIONS=10
 
 generate:
@@ -26,7 +26,6 @@ generate:
               --goldpath $(GOLD_PATH) \
               --config $(YAML_FILE) \
               --checkpointdir $(CHECKPOINTS) \
-              --datadir $(DATA_DIR) \
               --generate $(ADDARGS)
 
 test:
@@ -34,5 +33,4 @@ test:
                   --testsamples $(TEST_SAMPLES) \
               --goldpath $(GOLD_PATH) \
               --config $(YAML_FILE) \
-              --checkpointdir $(CHECKPOINTS) \
-              --datadir $(DATA_DIR)
+              --checkpointdir $(CHECKPOINTS)

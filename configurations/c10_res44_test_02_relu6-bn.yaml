@@ -1,4 +1,4 @@
-name: c10_res44_test_02_relu6-bn_200_epochs
+name: c10_res44_test_02_relu6-bn
 mode: validate
 ckpt: c10_res44_test_02_relu6-bn_sgd-epoch=99-val_acc=0.91.ckpt
 dataset: cifar10

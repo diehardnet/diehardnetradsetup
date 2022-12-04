@@ -1,4 +1,4 @@
-name: c100_res44_test_02_bn-relu6_base_
+name: c100_res44_test_02_bn-relu6_base
 mode: validate
 ckpt: c100_res44_test_02_bn-relu6_base_sgd-epoch=99-val_acc=0.70.ckpt
 dataset: cifar100

@@ -1,5 +1,6 @@
 # Error threshold for the test
 CLASSIFICATION_ABS_THRESHOLD = 0
+SEGMENTATION_ABS_THRESHOLD = 0
 DETECTION_BOXES_ABS_THRESHOLD = 1e-5
 DETECTION_SCORES_ABS_THRESHOLD = 1e-5
 
@@ -15,18 +16,20 @@ CLASSIFICATION_CRITICAL_TOP_K = 1
 DEVICE = "cuda:0"
 
 DIEHARDNET_CLASSIFICATION_CONFIGS = [
-    # Baseline
-    "_res44_test_01_bn-relu_base",
-    # Baseline + Relu6
-    "_res44_test_02_bn-relu6",
-    # Baseline + Relu6 + Order Inversion
-    "_res44_test_02_bn-relu6_base",
-    # Order inversion with relu6
-    "_res44_test_02_relu6-bn",
-    # Order inversion + nan filter + Relu6
-    "_res44_test_02_relu6-bn_nanfilter",
-    # Gelu and nan C100
-    "_res44_test_02_gelu6_nans",
+    f"{dataset}{config}" for dataset in ["c10", "c100"] for config in [
+        # Baseline
+        "_res44_test_01_bn-relu_base",
+        # Baseline + Relu6
+        "_res44_test_02_bn-relu6",
+        # Baseline + Relu6 + Order Inversion
+        "_res44_test_02_bn-relu6_base",
+        # Order inversion with relu6
+        "_res44_test_02_relu6-bn",
+        # Order inversion + nan filter + Relu6
+        "_res44_test_02_relu6-bn_nanfilter",
+        # Gelu and nan C100
+        "_res44_test_02_gelu6_nans",
+    ]
 ]
 
 RESNET50_IMAGENET_1K_V2_BASE = "resnet50_imagenet1k_v2_base"
@@ -36,11 +39,8 @@ DIEHARDNET_TRANS_LEARNING_CONFIGS = [
 
 ]
 
-DIEHARDNET_CLASSIFICATION_CONFIGS = [f"{dataset}{config}.yaml" for dataset in ["c10", "c100"] for config in
-                                     DIEHARDNET_CLASSIFICATION_CONFIGS]
-
 # Segmentation DNNs
-DEEPLABV3_RESNET50 = "deeplab_v3_resnet50_base"
+DEEPLABV3_RESNET50 = "deeplabv3_resnet50_base"
 
 DIEHARDNET_SEGMENTATION_CONFIGS = [
     # Baseline
@@ -59,7 +59,6 @@ DNN_GOAL = {
     **{k: SEGMENTATION for k in DIEHARDNET_SEGMENTATION_CONFIGS}
 }
 
-ALL_DNNS = DIEHARDNET_CLASSIFICATION_CONFIGS + DIEHARDNET_TRANS_LEARNING_CONFIGS
 
 CIFAR10 = "cifar10"
 CIFAR100 = "cifar100"
@@ -72,7 +71,11 @@ CLASSES = {
     IMAGENET: 1000
 }
 
+CIFAR_DATASET_DIR = "/home/carol/diehardnetradsetup/data"
 IMAGENET_DATASET_DIR = "/home/carol/ILSVRC2012"
 COCO_DATASET_DIR = "/home/carol/coco"
 COCO_DATASET_VAL = f"{COCO_DATASET_DIR}/val2017"
 COCO_DATASET_ANNOTATIONS = f"{COCO_DATASET_DIR}/annotations/instances_val2017.json"
+
+# File to save last status of the benchmark when log helper not active
+TMP_CRASH_FILE = "/tmp/diehardnet_crash_file.txt"

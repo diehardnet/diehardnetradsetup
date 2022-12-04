@@ -1,7 +1,7 @@
-name: deeplab_v3_resnet50_base
+name: deeplabv3_resnet50_base
 mode: validate
 ckpt: deeplabv3_resnet50_coco-cd0a2569.pth
-dataset: imagenet
+dataset: coco
 num_gpus: 1
 model: deeplab_v3_resnet50_base
-batch_size: 64
+batch_size: 32
