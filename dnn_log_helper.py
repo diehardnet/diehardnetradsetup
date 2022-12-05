@@ -56,6 +56,13 @@ def log_error_count(error_count: int) -> None:
         log_helper.log_error_count(error_count)
 
 
+def __getattr__(name: str) -> str:
+    if __LOGGING_ACTIVE:
+        if name == 'log_file_name':
+            return log_helper.get_log_file_name()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
 def log_and_crash(fatal_string: str) -> None:
     caller_frame_record = inspect.stack()[1]  # 0 represents this line
     # 1 represents line at caller

@@ -3,6 +3,8 @@ import argparse
 import collections
 import logging
 import os
+import random
+import re
 import time
 from typing import Tuple, List, Dict, Union
 
@@ -45,11 +47,23 @@ def load_model(args: argparse.Namespace) -> [torch.nn.Module, torchvision.transf
         resize_size = (224, 224)
         model = torchvision.models.resnet50(weights=weights)
         model.load_state_dict(torch.load(checkpoint_path))
-    elif args.name in configs.DEEPLABV3_RESNET50:
+    elif args.name in configs.DIEHARDNET_SEGMENTATION_CONFIGS:
         # Better for offline approach
-        weights = torchvision.models.segmentation.DeepLabV3_ResNet50_Weights.COCO_WITH_VOC_LABELS_V1
+        model = None
+        if args.name == configs.DEEPLABV3_RESNET50:
+            model = torchvision.models.segmentation.deeplabv3_resnet50(
+                weights=torchvision.models.segmentation.DeepLabV3_ResNet50_Weights.COCO_WITH_VOC_LABELS_V1)
+        elif args.name == configs.DEEPLABV3_RESNET101:
+            model = torchvision.models.segmentation.deeplabv3_resnet101(
+                weights=torchvision.models.segmentation.DeepLabV3_ResNet101_Weights.COCO_WITH_VOC_LABELS_V1)
+        elif args.name == configs.FCN_RESNET50:
+            model = torchvision.models.segmentation.fcn_resnet50(
+                weights=torchvision.models.segmentation.FCN_ResNet50_Weights.COCO_WITH_VOC_LABELS_V1)
+        elif args.name == configs.FCN_RESNET101:
+            model = torchvision.models.segmentation.fcn_resnet101(
+                weights=torchvision.models.segmentation.FCN_ResNet101_Weights.COCO_WITH_VOC_LABELS_V1)
+
         resize_size = (520, 520)
-        model = torchvision.models.segmentation.deeplabv3_resnet50(weights=weights)
         model.load_state_dict(torch.load(checkpoint_path))
     elif args.name in configs.DIEHARDNET_CLASSIFICATION_CONFIGS:
         resize_size = (32, 32)
@@ -78,6 +92,7 @@ def load_model(args: argparse.Namespace) -> [torch.nn.Module, torchvision.transf
 
 def load_dataset(batch_size: int, dataset: str, test_sample: int, download_dataset: bool,
                  transform: torchvision.transforms.Compose) -> Tuple[List, List]:
+    test_set = None
     if dataset == configs.CIFAR10:
         test_set = torchvision.datasets.cifar.CIFAR10(root=configs.CIFAR_DATASET_DIR, download=download_dataset,
                                                       train=False, transform=transform)
@@ -93,7 +108,7 @@ def load_dataset(batch_size: int, dataset: str, test_sample: int, download_datas
                                                            annFile=configs.COCO_DATASET_ANNOTATIONS,
                                                            transform=transform)
     else:
-        raise ValueError(f"Incorrect dataset {dataset}")
+        dnn_log_helper.log_and_crash(fatal_string=f"Incorrect dataset {dataset}")
 
     # noinspection PyUnresolvedReferences
     subset = torch.utils.data.SequentialSampler(range(test_sample))
@@ -164,7 +179,13 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
     args = parser.parse_args()
 
     if args.testsamples % args.batch_size != 0:
-        raise ValueError("Test samples should be multiple of batch size")
+        dnn_log_helper.log_and_crash(fatal_string="Test samples should be multiple of batch size")
+    # double check in the names
+    base_config_name = os.path.basename(args.config)
+    if base_config_name.replace(".yaml", "") != args.name:
+        dnn_log_helper.log_and_crash(
+            fatal_string=f"DNN name must have the same name as the config file, now:{args.name} != {base_config_name}")
+
     # Check if it is only to generate the gold values
     if args.generate:
         args.iterations = 1
@@ -224,28 +245,33 @@ def compare_classification(output_tensor: torch.tensor,
 def compare_segmentation(output_tensor: torch.tensor,
                          golden_tensor: torch.tensor,
                          batch_id: int,
-                         output_logger: logging.Logger) -> int:
+                         output_logger: logging.Logger,
+                         setup_iteration: int) -> int:
     output_errors = 0
+    abs_threshold = configs.SEGMENTATION_ABS_THRESHOLD
     for img_id, (output_batch, golden_batch) in enumerate(zip(output_tensor, golden_tensor)):
-        # using the same approach as the detection, compare only the positions that differ
-        if equal(rhs=golden_batch, lhs=output_batch, threshold=configs.SEGMENTATION_ABS_THRESHOLD) is False:
-            # ------------ Check error on the whole output -------------------------------------------------------------
-            for class_i, (gold_class, found_class) in enumerate(zip(golden_batch, output_batch)):
-                # TODO: Is it correct to iterate in all classes * all pixels?
-                for gi_cls, fi_cls in zip(gold_class, found_class):
-                    for gold, found in zip(gi_cls, fi_cls):
-                        diff = abs(gold - found)
-                        if diff > configs.SEGMENTATION_ABS_THRESHOLD and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
-                            output_errors += 1
-                            # error_detail_out = f"batch:{batch_id} img:{img_id} i:{class_i} g:{gold:.6e} o:{found:.6e}"
-                            #
-                            # if output_logger:
-                            #     output_logger.error(error_detail_out)
-                            # dnn_log_helper.log_error_detail(error_detail_out)
-                            pass
+        # ------------ Check error on the whole output -------------------------------------------------------------
+        # Count only and save the output file
+        if abs_threshold == 0:
+            equal_elements = torch.sum(torch.eq(output_batch, golden_batch))
+        else:
+            equal_elements = torch.sum(torch.le(torch.abs(torch.subtract(output_batch, golden_batch)), abs_threshold))
 
-    if output_errors != 0:
-        dnn_log_helper.log_error_count(error_count=output_errors)
+        diff_elements = abs(equal_elements - golden_batch.shape[0])
+        if diff_elements != 0:
+            # Save the batch
+            log_helper_file = re.match(r".*LOCAL:(\S+).log.*", dnn_log_helper.log_file_name).group(1)
+            # Random int will guarantee that files are not overriden (I hope so)
+            random_int = random.randrange(configs.RANDOM_INT_LIMIT)
+            full_sdc_file_name = f"{log_helper_file}_sdc_{batch_id}_{img_id}_{setup_iteration}_{random_int}.pt"
+            error_detail_out = f"batch:{batch_id} img:{img_id} has {diff_elements} different elements."
+            error_detail_out += f" Saving data on {full_sdc_file_name} file."
+            # Clone before saving, because using views will save the entire tensor
+            torch.save(torch.clone(output_batch), full_sdc_file_name)
+            if output_logger:
+                output_logger.error(error_detail_out)
+            dnn_log_helper.log_error_detail(error_detail_out)
+            output_errors += 1
 
     return output_errors
 
@@ -254,7 +280,7 @@ def compare(output_tensor: torch.tensor,
             golden: Dict[str, List[torch.tensor]],
             ground_truth_labels: Union[List[torch.tensor], List[dict]],
             batch_id: int,
-            output_logger: logging.Logger, dnn_goal: str):
+            output_logger: logging.Logger, dnn_goal: str, setup_iteration: int):
     golden_tensor = golden["output_list"][batch_id]
     # global TEST
     # TEST += 1
@@ -299,26 +325,28 @@ def compare(output_tensor: torch.tensor,
         output_errors = compare_segmentation(output_tensor=output_tensor,
                                              golden_tensor=golden_tensor,
                                              batch_id=batch_id,
-                                             output_logger=output_logger)
+                                             output_logger=output_logger, setup_iteration=setup_iteration)
     # ------------ log and return
     if output_errors != 0:
         dnn_log_helper.log_error_count(error_count=output_errors)
     return output_errors
 
 
-def check_dnn_accuracy(predicted: Dict[str, List[torch.tensor]], ground_truth: List[torch.tensor],
+def check_dnn_accuracy(predicted: Union[Dict[str, List[torch.tensor]], torch.tensor], ground_truth: List[torch.tensor],
                        output_logger: logging.Logger, dnn_goal: str) -> None:
+    correct, gt_count = 0, 0
     if dnn_goal == configs.CLASSIFICATION:
         predicted = predicted["top_k_labels"]
-        correct, gt_count = 0, 0
         for pred, gt in zip(predicted, ground_truth):
             gt_count += gt.shape[0]
             correct += torch.sum(torch.eq(pred, gt))
-        if output_logger:
-            output_logger.debug(f"Correct predicted samples:{correct} - ({(correct / gt_count) * 100:.2f}%)")
     elif dnn_goal == configs.SEGMENTATION:
-        # TODO: Ask Niccolo the best way to do it
-        pass
+        for pred_i, gt in zip(predicted, ground_truth):
+            # TODO: Calculate the IoU here
+            gt_count += len(gt)
+
+    if output_logger:
+        output_logger.debug(f"Correct predicted samples:{correct} - ({(correct / gt_count) * 100:.2f}%)")
 
 
 def update_golden(golden: torch.tensor, output: torch.tensor, dnn_goal: str) -> Dict[str, list]:
@@ -347,6 +375,43 @@ def forward(batched_input: torch.tensor, model: torch.nn.Module, model_name: str
         return model(batched_input)
     else:
         return model(batched_input, inject=False)
+
+
+def show(all_batches_output: torch.tensor, all_batches_input: torch.tensor, batch_id: int, model: str):
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import torchvision.transforms.functional as F
+    plt.rcParams["savefig.bbox"] = 'tight'
+
+    normalized_masks = torch.nn.functional.softmax(all_batches_output, dim=1)
+    num_classes = normalized_masks.shape[1]
+    for batch, classes in enumerate(normalized_masks):
+        dog1_masks = normalized_masks[batch]
+        class_dim = 0
+        dog1_all_classes_masks = dog1_masks.argmax(class_dim) == torch.arange(num_classes)[:, None, None]
+        dog1_int = all_batches_input[batch].to("cpu").type(torch.uint8)
+        # noinspection PyTypeChecker
+        dog_with_all_masks = torchvision.utils.draw_segmentation_masks(dog1_int, masks=dog1_all_classes_masks)
+        fig, ax = plt.subplots(nrows=1, ncols=1, squeeze=False)
+        dog_with_all_masks = np.asarray(F.to_pil_image(dog_with_all_masks.detach()))
+        ax[0, 0].imshow(dog_with_all_masks)
+        plt.savefig(f"./{model}_test{batch}_{batch_id}.jpg")
+    # for batch, classes in enumerate(normalized_masks):
+    # fig, axs = plt.subplots(ncols=5, nrows=5, squeeze=False)
+    # iterator = iter(classes)
+    # for i in range(5):
+    #     for j in range(5):
+    #         if i * 5 + j >= len(classes):
+    #             break
+    #         img = next(iterator)
+    #         img = img.detach()
+    #         img = F.to_pil_image(img)
+    #         axs[i, j].imshow(np.asarray(img))
+    #         axs[i, j].set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
+    # img_input = all_batches_input[batch].to("cpu").detach()
+    # img_input = np.asarray(F.to_pil_image(img_input))
+    # axs[4, 2].imshow(img_input)
+    # plt.savefig(f"./test{batch}.jpg")
 
 
 def main():
@@ -428,9 +493,12 @@ def main():
                                  golden=golden,
                                  ground_truth_labels=input_labels,
                                  batch_id=batch_id,
-                                 output_logger=terminal_logger, dnn_goal=dnn_goal)
+                                 output_logger=terminal_logger, dnn_goal=dnn_goal, setup_iteration=setup_iteration)
             else:
                 golden = update_golden(golden=golden, output=dnn_output_cpu, dnn_goal=dnn_goal)
+                # show(all_batches_output=dnn_output_cpu, all_batches_input=batched_input, batch_id=batch_id,
+                #      model=args.model)
+
             timer.toc()
             comparison_time = timer.diff_time
 

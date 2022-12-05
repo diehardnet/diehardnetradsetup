@@ -1,0 +1,7 @@
+name: fcn_resnet50_base
+mode: validate
+ckpt: fcn_resnet50_coco-1167a1af.pth
+dataset: coco
+num_gpus: 1
+model: fcn_resnet50_base
+batch_size: 32

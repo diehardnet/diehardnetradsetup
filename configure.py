@@ -83,9 +83,9 @@ def configure(download_datasets: bool, download_models: bool):
 
 def test_all_jsons(timeout=30):
     hostname = gethostname()
-    jsons_path = f"data/{hostname}_jsons"
-    print("JSONS PATH:", jsons_path)
-    for file in glob.glob(rf"{jsons_path}/*.json", recursive=True):
+    current_directory = os.getcwd()
+    for config in ALL_DNNS:
+        file = f"{current_directory}/data/{hostname}_jsons/{config}.json"
         with open(file, "r") as fp:
             json_data = json.load(fp)
 
@@ -112,6 +112,10 @@ def download_models_process():
 
         # Deeplav3
         "https://download.pytorch.org/models/deeplabv3_resnet50_coco-cd0a2569.pth",
+        "https://download.pytorch.org/models/deeplabv3_resnet101_coco-586e9e4e.pth",
+        # FCN
+        "https://download.pytorch.org/models/fcn_resnet50_coco-1167a1af.pth",
+        "https://download.pytorch.org/models/fcn_resnet101_coco-7ecb50ca.pth"
 
     ]
     check_points = "data/checkpoints"
