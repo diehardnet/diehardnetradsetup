@@ -505,6 +505,8 @@ def main():
                     terminal_logger.info("RELOADING THE MODEL AND THE INPUTS AFTER ERROR")
                 del input_list
                 del model
+                # Free cuda memory
+                torch.cuda.empty_cache()
                 model, _ = load_model(args=args)
                 input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, test_sample=test_sample,
                                                         transform=transform)
