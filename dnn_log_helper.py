@@ -5,7 +5,7 @@ import inspect
 import sys
 import traceback
 
-from libLogHelper.build import log_helper
+import log_helper
 
 import configs
 
