@@ -23,7 +23,8 @@ def start_setup_log_file(framework_name: str, framework_version: str, args_conf:
         log_helper.start_log_file(bench_name, dnn_log_header)
         log_helper.set_max_errors_iter(configs.MAXIMUM_ERRORS_PER_ITERATION)
         log_helper.set_max_infos_iter(configs.MAXIMUM_INFOS_PER_ITERATION)
-        log_helper.set_iter_interval_print(configs.ITERATION_INTERVAL_LOG_HELPER_PRINT)
+        interval_print = configs.ITERATION_INTERVAL_LOG_HELPER_PRINT[dnn_name]
+        log_helper.set_iter_interval_print(interval_print)
 
 
 def start_iteration() -> None:
