@@ -4,4 +4,4 @@ ckpt: deeplabv3_resnet101_coco-586e9e4e.pth
 dataset: coco
 num_gpus: 1
 model: deeplab_v3_resnet101_base
-batch_size: 32
+batch_size: 16

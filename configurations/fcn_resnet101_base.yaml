@@ -4,4 +4,4 @@ ckpt: fcn_resnet101_coco-7ecb50ca.pth
 dataset: coco
 num_gpus: 1
 model: fcn_resnet101_base
-batch_size: 32
+batch_size: 16
