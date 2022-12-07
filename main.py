@@ -379,7 +379,9 @@ def copy_output_to_cpu(dnn_output: Union[torch.tensor, collections.OrderedDict],
 
 
 def forward(batched_input: torch.tensor, model: torch.nn.Module, model_name: str) -> torch.tensor:
-    if model_name in configs.DIEHARDNET_TRANS_LEARNING_CONFIGS + configs.DIEHARDNET_SEGMENTATION_CONFIGS:
+    pretrained_configs = configs.DIEHARDNET_TRANS_LEARNING_CONFIGS + configs.DIEHARDNET_SEGMENTATION_CONFIGS
+    pretrained_configs +=  configs.DIEHARDNET_VITS_CONFIGS
+    if model_name in pretrained_configs:
         return model(batched_input)
     else:
         return model(batched_input, inject=False)
