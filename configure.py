@@ -18,7 +18,7 @@ ITERATIONS = int(1e12)
 TEST_SAMPLES = {
     **{k: 128 * 64 for k in configs.DIEHARDNET_CLASSIFICATION_CONFIGS},
     **{k: 64 * 16 for k in configs.DIEHARDNET_TRANS_LEARNING_CONFIGS},
-    **{k: 32 * 4 for k in configs.DIEHARDNET_SEGMENTATION_CONFIGS},
+    **{k: 32 * 2 for k in configs.DIEHARDNET_SEGMENTATION_CONFIGS},
 }
 
 
