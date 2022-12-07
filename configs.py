@@ -77,7 +77,7 @@ CLASSES = {
     IMAGENET: 1000
 }
 
-CIFAR_DATASET_DIR = "/home/carol/diehardnetradsetup/data"
+CIFAR_DATASET_DIR = "/home/carol/cifar"
 IMAGENET_DATASET_DIR = "/home/carol/ILSVRC2012"
 COCO_DATASET_DIR = "/home/carol/coco"
 COCO_DATASET_VAL = f"{COCO_DATASET_DIR}/val2017"

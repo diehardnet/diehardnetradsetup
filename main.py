@@ -90,15 +90,15 @@ def load_model(args: argparse.Namespace) -> [torch.nn.Module, torchvision.transf
     return model, transform
 
 
-def load_dataset(batch_size: int, dataset: str, test_sample: int, download_dataset: bool,
+def load_dataset(batch_size: int, dataset: str, test_sample: int,
                  transform: torchvision.transforms.Compose) -> Tuple[List, List]:
     test_set = None
     if dataset == configs.CIFAR10:
-        test_set = torchvision.datasets.cifar.CIFAR10(root=configs.CIFAR_DATASET_DIR, download=download_dataset,
-                                                      train=False, transform=transform)
+        test_set = torchvision.datasets.cifar.CIFAR10(root=configs.CIFAR_DATASET_DIR, download=False, train=False,
+                                                      transform=transform)
     elif dataset == configs.CIFAR100:
-        test_set = torchvision.datasets.cifar.CIFAR100(root=configs.CIFAR_DATASET_DIR, download=download_dataset,
-                                                       train=False, transform=transform)
+        test_set = torchvision.datasets.cifar.CIFAR100(root=configs.CIFAR_DATASET_DIR, download=False, train=False,
+                                                       transform=transform)
     elif dataset == configs.IMAGENET:
         test_set = torchvision.datasets.imagenet.ImageNet(root=configs.IMAGENET_DATASET_DIR, transform=transform,
                                                           split='val')
@@ -168,8 +168,6 @@ def parse_args() -> Tuple[argparse.Namespace, List[str]]:
     # parser = argparse.ArgumentParser(description='PyTorch DNN radiation setup')
     parser.add_argument('--iterations', default=int(1e12), help="Iterations to run forever", type=int)
     parser.add_argument('--testsamples', default=100, help="Test samples to be used in the test.", type=int)
-    parser.add_argument('--downloaddataset', default=False, action="store_true",
-                        help="Set to download the dataset, default is to not download. Needs internet.")
     parser.add_argument('--generate', default=False, action="store_true", help="Set this flag to generate the gold")
     parser.add_argument('--disableconsolelog', default=False, action="store_true",
                         help="Set this flag disable console logging")
@@ -439,7 +437,6 @@ def main():
     batch_size = args.batch_size
     test_sample = args.testsamples
     dataset = args.dataset
-    download_dataset = args.downloaddataset
     gold_path = args.goldpath
     iterations = args.iterations
 
@@ -448,7 +445,7 @@ def main():
     # First step is to load the inputs in the memory
     timer.tic()
     input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, test_sample=test_sample,
-                                            download_dataset=download_dataset, transform=transform)
+                                            transform=transform)
     timer.toc()
     input_load_time = timer.diff_time_str
     # Terminal console
@@ -510,7 +507,7 @@ def main():
                 del model
                 model, _ = load_model(args=args)
                 input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, test_sample=test_sample,
-                                                        download_dataset=download_dataset, transform=transform)
+                                                        transform=transform)
 
             # Printing timing information
             if terminal_logger:

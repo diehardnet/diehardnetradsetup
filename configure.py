@@ -1,12 +1,12 @@
 #!/usr/bin/python3
 import argparse
 import configparser
-import glob
 import json
 import os.path
 import time
-from socket import gethostname
 from pathlib import Path
+from socket import gethostname
+
 import configs
 
 ALL_DNNS = configs.DIEHARDNET_CLASSIFICATION_CONFIGS
@@ -39,6 +39,9 @@ def configure(download_datasets: bool, download_models: bool):
     if download_models:
         print("Download all the models")
         download_models_process()
+    if download_datasets:
+        print("Download CIFAR and COCO datasets")
+        download_datasets_process()
 
     current_directory = os.getcwd()
     script_name = "main.py"
@@ -98,12 +101,6 @@ def test_all_jsons(timeout=30):
 
 def download_models_process():
     links = [
-        # Mobile net
-        # CIFAR 10
-        # "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2/cifar10_mobilenetv2_x1_4-3bbbd6e2.pt",
-        # # CIFAR 100
-        # "https://github.com/chenyaofo/pytorch-cifar-models/releases/download/mobilenetv2/cifar100_mobilenetv2_x1_4-8a269f5e.pt",
-
         # Diehardnet all
         "https://www.dropbox.com/s/4497lt4a72l9yw3/chipir_2022.tar.gz",
 
@@ -135,14 +132,48 @@ def download_models_process():
                 f"tar xzf {final_path} -C {check_points}") == 0, "Extracting the checkpoints not successful"
 
 
+def download_datasets_process():
+    links = {
+        # Cifar 10
+        configs.CIFAR10: [["https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"], configs.CIFAR_DATASET_DIR],
+        # Cifar 100
+        configs.CIFAR100: [["https://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz"], configs.CIFAR_DATASET_DIR],
+        # Coco
+        configs.COCO: [["http://images.cocodataset.org/zips/val2017.zip",
+                        "http://images.cocodataset.org/annotations/annotations_trainval2017.zip"],
+                       configs.COCO_DATASET_DIR],
+
+    }
+    for dataset in links:
+        data_links, dataset_dir = links[dataset]
+        if os.path.isdir(dataset_dir) is False:
+            os.mkdir(dataset_dir)
+        current_dir = os.getcwd()
+        os.chdir(dataset_dir)
+
+        for dtl in data_links:
+            uncompress_cmd = "tar xzf" if ".tar.gz" in dtl else "unzip"
+            dtl_file = dtl.rsplit('/', 1)[-1]
+            # Never been done before
+            if os.path.isfile(dtl_file) is False:
+                if os.system(f"wget {dtl}") != 0:
+                    raise ConnectionError("Failed to download the dataset")
+            if os.system(f"{uncompress_cmd} {dtl_file}") != 0:
+                raise IOError(f"Could not uncompress the file {dtl_file}")
+        os.chdir(current_dir)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Configure a setup', add_help=True)
     parser.add_argument('--testjsons', default=0,
                         help="How many seconds to test the jsons, if 0 (default) it does the configure", type=int)
-    parser.add_argument('--downloaddataset', default=False, action="store_true", help="Download the datasets")
     parser.add_argument('--downloadmodels', default=False, action="store_true", help="Download the models")
-
+    parser.add_argument('--downloaddataset', default=False, action="store_true",
+                        help="Set to download the dataset, default is to not download. Needs internet.")
     args = parser.parse_args()
+
+    if os.path.islink("pytorch_scripts") is False:
+        raise NotADirectoryError("You have to create a symlink to pytorch_scripts to be able to run the setup")
 
     if args.testjsons != 0:
         test_all_jsons(timeout=args.testjsons)

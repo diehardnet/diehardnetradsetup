@@ -8,3 +8,5 @@ timm
 typing
 matplotlib
 pycocotools
+scipy
+seaborn
