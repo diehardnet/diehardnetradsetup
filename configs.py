@@ -54,6 +54,18 @@ DIEHARDNET_SEGMENTATION_CONFIGS = [
     FCN_RESNET101
 ]
 
+# Classification ViTs
+VITS_BASE_PATCH16_224 = "vit_base_patch16_224"
+VITS_BASE_PATCH16_384 = "vit_base_patch32_384"
+VITS_BASE_PATCH32_SAM_224 = "vit_base_patch32_sam_224"
+VITS_BASE_RESNET50_384 = "vit_base_resnet50_384"
+DIEHARDNET_VITS_CONFIGS = [
+    VITS_BASE_PATCH16_224,
+    VITS_BASE_PATCH16_384,
+    VITS_BASE_PATCH32_SAM_224,
+    VITS_BASE_RESNET50_384
+]
+
 # Set the supported goals
 CLASSIFICATION = "classify"
 SEGMENTATION = "segmentation"
@@ -61,13 +73,14 @@ SEGMENTATION = "segmentation"
 DNN_GOAL = {
     # Classification nets
     **{k: CLASSIFICATION for k in DIEHARDNET_CLASSIFICATION_CONFIGS + DIEHARDNET_TRANS_LEARNING_CONFIGS},
+    **{k: CLASSIFICATION for k in DIEHARDNET_VITS_CONFIGS},
     # Segmentation nets
-    **{k: SEGMENTATION for k in DIEHARDNET_SEGMENTATION_CONFIGS}
+    **{k: SEGMENTATION for k in DIEHARDNET_SEGMENTATION_CONFIGS},
 }
 
 ITERATION_INTERVAL_LOG_HELPER_PRINT = {
     # Classification nets, cifar, very small
-    **{k: 30 for k in DIEHARDNET_CLASSIFICATION_CONFIGS },
+    **{k: 30 for k in DIEHARDNET_CLASSIFICATION_CONFIGS},
     # imagenet not so small
     **{k: 10 for k in DIEHARDNET_TRANS_LEARNING_CONFIGS},
     # Segmentation nets, huge

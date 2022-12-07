@@ -11,6 +11,7 @@ from typing import Tuple, List, Dict, Union
 import torch
 import torchvision
 import yaml
+import timm
 
 import configs
 import console_logger
@@ -65,6 +66,9 @@ def load_model(args: argparse.Namespace) -> [torch.nn.Module, torchvision.transf
 
         resize_size = (520, 520)
         model.load_state_dict(torch.load(checkpoint_path))
+    elif args.name in configs.DIEHARDNET_VITS_CONFIGS:
+        model = timm.create_model(args.model, pretrained=True)
+        model.eval()
     elif args.name in configs.DIEHARDNET_CLASSIFICATION_CONFIGS:
         resize_size = (32, 32)
         # Build model (Resnet only up to now)
