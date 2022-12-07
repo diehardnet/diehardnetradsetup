@@ -69,8 +69,6 @@ def configure(download_datasets: bool, download_models: bool):
             "header": " ".join(execute_parameters)
         }]
 
-        if download_datasets:
-            parameters += ["--downloaddataset"]
         generate_cmd = " ".join(parameters + ["--generate"])
         # dump json
         with open(json_file_name, "w") as json_fp:
