@@ -42,6 +42,7 @@ def load_model(args: argparse.Namespace) -> [torch.nn.Module, torchvision.transf
 
     resize_size, model = None, None
     # First option is the baseline option
+    transform = None
     if args.name in configs.RESNET50_IMAGENET_1K_V2_BASE:
         # Better for offline approach
         weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2
@@ -68,6 +69,8 @@ def load_model(args: argparse.Namespace) -> [torch.nn.Module, torchvision.transf
         model.load_state_dict(torch.load(checkpoint_path))
     elif args.name in configs.DIEHARDNET_VITS_CONFIGS:
         model = timm.create_model(args.model, pretrained=True)
+        config = timm.data.resolve_data_config({}, model=model)
+        transform = timm.data.transform_factory.create_transform(**config)
         model.eval()
     elif args.name in configs.DIEHARDNET_CLASSIFICATION_CONFIGS:
         resize_size = (32, 32)
@@ -87,10 +90,13 @@ def load_model(args: argparse.Namespace) -> [torch.nn.Module, torchvision.transf
     model.eval()
     model = model.to(configs.DEVICE)
     # Default values for CIFAR 10 and 100
-    transform = torchvision.transforms.Compose([torchvision.transforms.Resize(size=resize_size),
-                                                torchvision.transforms.ToTensor(),
-                                                torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                                                 std=[0.229, 0.224, 0.225])])
+    if transform is None:
+        transform = torchvision.transforms.Compose([torchvision.transforms.Resize(size=resize_size),
+                                                    torchvision.transforms.ToTensor(),
+                                                    torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                                                                     std=[0.229, 0.224, 0.225])])
+
+
     return model, transform
 
 

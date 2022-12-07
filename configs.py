@@ -82,7 +82,7 @@ ITERATION_INTERVAL_LOG_HELPER_PRINT = {
     # Classification nets, cifar, very small
     **{k: 30 for k in DIEHARDNET_CLASSIFICATION_CONFIGS},
     # imagenet not so small
-    **{k: 10 for k in DIEHARDNET_TRANS_LEARNING_CONFIGS},
+    **{k: 10 for k in DIEHARDNET_TRANS_LEARNING_CONFIGS + DIEHARDNET_VITS_CONFIGS},
     # Segmentation nets, huge
     **{k: 1 for k in DIEHARDNET_SEGMENTATION_CONFIGS}
 }
