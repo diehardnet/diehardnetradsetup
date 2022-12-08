@@ -71,7 +71,6 @@ def load_model(args: argparse.Namespace) -> [torch.nn.Module, torchvision.transf
         model = timm.create_model(args.model, pretrained=True)
         config = timm.data.resolve_data_config({}, model=model)
         transform = timm.data.transforms_factory.create_transform(**config)
-        model.eval()
     elif args.name in configs.DIEHARDNET_CLASSIFICATION_CONFIGS:
         resize_size = (32, 32)
         # Build model (Resnet only up to now)

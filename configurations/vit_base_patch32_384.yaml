@@ -1,0 +1,7 @@
+name: vit_base_patch32_384
+mode: validate
+ckpt:
+dataset: imagenet
+num_gpus: 1
+model: vit_base_patch32_384
+batch_size: 64
