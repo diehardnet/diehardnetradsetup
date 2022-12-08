@@ -1,7 +1,7 @@
-name: vit_base_patch32_sam_224
+name: vit_base_patch32_224_sam
 mode: validate
 ckpt:
 dataset: imagenet
 num_gpus: 1
-model: vit_base_patch32_sam_224
+model: vit_base_patch32_224_sam
 batch_size: 64
