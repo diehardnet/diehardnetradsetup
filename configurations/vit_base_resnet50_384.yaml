@@ -4,4 +4,4 @@ ckpt:
 dataset: imagenet
 num_gpus: 1
 model: vit_base_resnet50_384
-batch_size: 64
+batch_size: 16

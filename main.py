@@ -480,10 +480,11 @@ def main():
     setup_iteration = 0
     while setup_iteration < iterations:
         # Loop over the input list
-        for batch_id, batched_input in enumerate(input_list):
+        batch_id = 0 # It must be like this, because I may reload the list in the middle of the process
+        while batch_id < batch_size:
             timer.tic()
             dnn_log_helper.start_iteration()
-            dnn_output = forward(batched_input=batched_input, model=model, model_name=args.name)
+            dnn_output = forward(batched_input=input_list[batch_id], model=model, model_name=args.name)
             torch.cuda.synchronize(device=configs.DEVICE)
             dnn_log_helper.end_iteration()
             timer.toc()
@@ -530,7 +531,7 @@ def main():
                 iteration_out += f"compare time:{comparison_time:.5f} copy time:{copy_to_cpu_time:.5f} "
                 iteration_out += f"(wasted:{time_pct:.1f}%) errors:{errors}"
                 terminal_logger.debug(iteration_out)
-
+            batch_id += 1
         setup_iteration += 1
 
     if generate is True:
