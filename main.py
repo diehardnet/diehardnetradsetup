@@ -481,7 +481,7 @@ def main():
     while setup_iteration < iterations:
         # Loop over the input list
         batch_id = 0 # It must be like this, because I may reload the list in the middle of the process
-        while batch_id < batch_size:
+        while batch_id < len(input_list):
             timer.tic()
             dnn_log_helper.start_iteration()
             dnn_output = forward(batched_input=input_list[batch_id], model=model, model_name=args.name)
