@@ -32,7 +32,7 @@ def parse_log_file(log_path: str) -> List[dict]:
         critical_sdc = False
         with open(log_path) as log_fp:
             header = log_fp.readline()
-            h_m = re.match(r"#SERVER_HEADER.*--config.*/(\S+).yaml --checkpointdir.*", header)
+            h_m = re.match(r"#SERVER_HEADER.*--config.*/(\S+).yaml .*", header)
             data_dict = dict(start_dt=start_dt, config=h_m.group(1), ecc=ecc, hostname=hostname)
 
             for line in log_fp:
@@ -55,7 +55,7 @@ def main():
     args = parse_args()
     data_list = list()
     for subdir, dirs, files in os.walk(args.logdir):
-        if any([i in subdir for i in ["carolp", "carola", "carolm"]]):
+        if any([i in subdir for i in ["carolp"]]):
             for file in files:
                 path = os.path.join(subdir, file)
                 new_line = parse_log_file(log_path=path)
@@ -64,7 +64,7 @@ def main():
 
     df = pd.DataFrame(data_list)
     df = df.fillna(0)
-    df.to_csv("parsed_logs.csv", index=False)
+    df.to_csv("../data/parsed_logs.csv", index=False)
 
 
 if __name__ == '__main__':
