@@ -4,9 +4,9 @@ import copy
 import datetime
 import os
 import re
+from typing import List
 
 import pandas as pd
-from typing import Union, List
 
 
 def parse_args() -> argparse.Namespace:
@@ -33,21 +33,25 @@ def parse_log_file(log_path: str) -> List[dict]:
         with open(log_path) as log_fp:
             header = log_fp.readline()
             h_m = re.match(r"#SERVER_HEADER.*--config.*/(\S+).yaml .*", header)
-            data_dict = dict(start_dt=start_dt, config=h_m.group(1), ecc=ecc, hostname=hostname)
-
+            data_dict = dict(start_dt=start_dt, config=h_m.group(1), ecc=ecc, hostname=hostname,
+                             logfile=os.path.basename(log_path))
+            last_acc_time = 0
             for line in log_fp:
                 if "critical-img" in line:
                     critical_sdc = True
                 sdc_m = re.match(r"#SDC Ite:(\d+) KerTime:(\S+) AccTime:(\S+) KerErr:(\d+) AccErr:(\d+)", line)
                 if sdc_m:
                     it, ker_time, acc_time, ker_err, acc_err = sdc_m.groups()
+                    last_acc_time = float(acc_time)
                     curr_data = copy.deepcopy(data_dict)
-                    curr_data.update(dict(it=it, ker_time=float(ker_time), acc_time=float(acc_time), ker_err=ker_err,
+                    curr_data.update(dict(it=it, ker_time=float(ker_time), acc_time=0, ker_err=ker_err,
                                           acc_err=acc_err, sdc=1, critical_sdc=0, hostname=hostname))
                     if critical_sdc:
                         curr_data["critical_sdc"] = 1
                         critical_sdc = False
                     data_list.append(curr_data)
+            if data_list:
+                data_list[-1]["acc_time"] = last_acc_time
         return data_list
 
 
