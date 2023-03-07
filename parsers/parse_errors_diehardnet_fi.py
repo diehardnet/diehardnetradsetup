@@ -1,51 +1,10 @@
 #!/usr/bin/python3
-import copy
 import os.path
 import re
-from typing import List
 
 import pandas as pd
 
-
-def parse_log_file(log_path: str, fi_model: str, group: str) -> List[dict]:
-    # ...log/2022_09_15_16_00_43_PyTorch-c100_res44_test_02_relu6-bn_200_epochs_ECC_OFF_carolinria.log
-    pattern = r".*/(\d+)_(\d+)_(\d+)_(\d+)_(\d+)_(\d+)_\S+_ECC_(\S+)_(\S+).log"
-    m = re.match(pattern, log_path)
-    if m:
-        year, month, day, hour, minute, seconds, ecc, hostname = m.groups()
-        # year, month, day, hour, minute, seconds = [int(i) for i in [year, month, day, hour, minute, seconds]]
-        # start_dt = datetime.datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=seconds)
-        data_list = list()
-        critical_sdc = False
-        with open(log_path) as log_fp:
-            header = log_fp.readline()
-            h_m = re.match(r"#HEADER.*config=.*/(\S+).yaml.*", header)
-            config = h_m.group(1)
-            data_dict = dict(config=config, ecc=ecc, hostname=hostname, fi_model=fi_model, group=group)
-            has_end = False
-            has_sdc = False
-            for line in log_fp:
-                has_end = ("#END" in line) or has_end
-                if "critical-img" in line:
-                    critical_sdc = True
-                sdc_m = re.match(r"#SDC Ite:(\d+) KerTime:(\S+) AccTime:(\S+) KerErr:(\d+) AccErr:(\d+)", line)
-                if sdc_m:
-                    has_sdc = True
-                    it, ker_time, acc_time, ker_err, acc_err = sdc_m.groups()
-                    curr_data = copy.deepcopy(data_dict)
-                    curr_data.update(dict(it=it, ker_time=float(ker_time), acc_time=float(acc_time), ker_err=ker_err,
-                                          acc_err=acc_err, sdc=1, critical_sdc=0, hostname=hostname))
-                    if critical_sdc:
-                        curr_data["critical_sdc"] = 1
-                        critical_sdc = False
-                    data_list.append(curr_data)
-            if has_sdc is False:
-                data_list.append(data_dict)
-
-            for data_list_i in data_list:
-                data_list_i["has_end"] = int(has_end)
-
-        return data_list
+from common import parse_log_file
 
 
 def get_log_file_name(fi_dir, config, fault_it, fi_model, group):
@@ -121,9 +80,13 @@ def main():
                         log_file = get_log_file_name(fi_dir=nvbit_fi_log_dir, config=config, fault_it=it,
                                                      fi_model=fi_model, group=fp32)
                         full_log_file = f"{rad_log_dir}/{log_file}"
-                        new_line = parse_log_file(log_path=full_log_file, fi_model=fi_model_str, group=fp32_str)
-                        if new_line:
-                            data_list.extend(new_line)
+                        new_line, _ = parse_log_file(log_path=full_log_file)
+                        if len(new_line) == 1:
+                            new_line = new_line[0]
+                            new_line["fi_model"], new_line["group"] = fi_model, fp32_str
+                            data_list.append(new_line)
+                        elif len(new_line) > 1:
+                            raise ValueError("Incorrect size of new line")
 
     for tar_file, datasets in tar_files_imagenet.items():
         tar_full_path = f"{data_location}/{tar_file}.tar.gz"
@@ -142,9 +105,13 @@ def main():
                 log_file = get_log_file_name(fi_dir=nvbit_fi_log_dir, config=config, fault_it=it,
                                              fi_model=fi_model, group=fp32)
                 full_log_file = f"{rad_log_dir}/{log_file}"
-                new_line = parse_log_file(log_path=full_log_file, fi_model=fi_model_str, group=fp32_str)
-                if new_line:
-                    data_list.extend(new_line)
+                new_line, _ = parse_log_file(log_path=full_log_file)
+                if len(new_line) == 1:
+                    new_line = new_line[0]
+                    new_line["fi_model"], new_line["group"] = fi_model, fp32_str
+                    data_list.append(new_line)
+                elif len(new_line) > 1:
+                    raise ValueError("Incorrect size of new line")
 
     df = pd.DataFrame(data_list)
     df = df.fillna(0)
