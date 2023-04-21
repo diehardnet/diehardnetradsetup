@@ -3,7 +3,6 @@ import argparse
 import os
 
 import pandas as pd
-import yaml
 
 from common import parse_log_file
 
@@ -23,16 +22,12 @@ def main():
     args = parse_args()
     data_list = list()
     for subdir, dirs, files in os.walk(args.logdir):
-        print("Parsing", subdir)
         if any([i in subdir for i in ["carolp", "carolm", "carola"]]):
+            print("Parsing", subdir)
             for file in files:
                 path = os.path.join(subdir, file)
-                new_line, config = parse_log_file(log_path=path)
+                new_line = parse_log_file(log_path=path)
                 if new_line:
-                    with open(f"../configurations/{config}.yaml") as fp:
-                        batch_size = yaml.safe_load(fp)["batch_size"]
-                    for dt in new_line:
-                        dt["batch_size"] = batch_size
                     data_list.extend(new_line)
 
     df = pd.DataFrame(data_list)

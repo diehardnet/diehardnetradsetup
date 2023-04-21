@@ -80,7 +80,7 @@ def main():
                         log_file = get_log_file_name(fi_dir=nvbit_fi_log_dir, config=config, fault_it=it,
                                                      fi_model=fi_model, group=fp32)
                         full_log_file = f"{rad_log_dir}/{log_file}"
-                        new_line, _ = parse_log_file(log_path=full_log_file)
+                        new_line = parse_log_file(log_path=full_log_file)
                         if len(new_line) == 1:
                             new_line = new_line[0]
                             new_line["fi_model"], new_line["group"] = fi_model, fp32_str
@@ -105,7 +105,7 @@ def main():
                 log_file = get_log_file_name(fi_dir=nvbit_fi_log_dir, config=config, fault_it=it,
                                              fi_model=fi_model, group=fp32)
                 full_log_file = f"{rad_log_dir}/{log_file}"
-                new_line, _ = parse_log_file(log_path=full_log_file)
+                new_line = parse_log_file(log_path=full_log_file)
                 if len(new_line) == 1:
                     new_line = new_line[0]
                     new_line["fi_model"], new_line["group"] = fi_model, fp32_str
