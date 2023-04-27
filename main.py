@@ -226,7 +226,7 @@ def compare_classification(output_tensor: torch.tensor,
             # ------------ Check if there is a Critical error ----------------------------------------------------------
             top_k_batch_label_flatten = torch.topk(output_batch, k=top_k).indices.squeeze(0).flatten()
             golden_batch_label_flatten = golden_batch_label.flatten()
-            for i, (tpk_found, tpk_gold) in enumerate(zip(golden_batch_label_flatten, top_k_batch_label_flatten)):
+            for i, (tpk_gold, tpk_found) in enumerate(zip(golden_batch_label_flatten, top_k_batch_label_flatten)):
                 # Both are integers, and log only if it is feasible
                 if tpk_found != tpk_gold and output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
                     output_errors += 1
