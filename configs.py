@@ -52,6 +52,8 @@ DIEHARDNET_SEGMENTATION_CONFIGS = [
     DEEPLABV3_RESNET101,
     # FCN_RESNET50,
     # FCN_RESNET101
+    "deeplab",
+    "deeplab_relumax"
 ]
 
 # Classification ViTs
@@ -92,11 +94,13 @@ CIFAR10 = "cifar10"
 CIFAR100 = "cifar100"
 IMAGENET = "imagenet"
 COCO = "coco"
+CITYSCAPES = "cityscapes"
 
 CLASSES = {
     CIFAR10: 10,
     CIFAR100: 100,
-    IMAGENET: 1000
+    IMAGENET: 1000,
+    CITYSCAPES: 19
 }
 
 CIFAR_DATASET_DIR = "/home/carol/cifar"
@@ -104,6 +108,7 @@ IMAGENET_DATASET_DIR = "/home/carol/ILSVRC2012"
 COCO_DATASET_DIR = "/home/carol/coco"
 COCO_DATASET_VAL = f"{COCO_DATASET_DIR}/val2017"
 COCO_DATASET_ANNOTATIONS = f"{COCO_DATASET_DIR}/annotations/instances_val2017.json"
+CITYSCAPES_DATASET_DIR = "" #TODO: setup
 
 # File to save last status of the benchmark when log helper not active
 TMP_CRASH_FILE = "/tmp/diehardnet_crash_file.txt"

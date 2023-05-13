@@ -16,8 +16,11 @@ import timm
 import configs
 import console_logger
 import dnn_log_helper
-from pytorch_scripts.utils import build_model
 
+from pytorch_scripts.segmentation.utils import build_model
+from pytorch_scripts.segmentation.cityscapes import Cityscapes
+from pytorch_scripts.segmentation.stream_metrics import StreamSegMetrics
+import pytorch_scripts.segmentation.transforms as ST
 
 class Timer:
     time_measure = 0
@@ -43,58 +46,30 @@ def load_model(args: argparse.Namespace) -> Tuple[torch.nn.Module, torchvision.t
     resize_size, model = None, None
     # First option is the baseline option
     transform = None
-    if args.name in configs.RESNET50_IMAGENET_1K_V2_BASE:
-        # Better for offline approach
-        weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2
-        resize_size = (224, 224)
-        model = torchvision.models.resnet50(weights=weights)
-        model.load_state_dict(torch.load(checkpoint_path))
-    elif args.name in configs.DIEHARDNET_SEGMENTATION_CONFIGS:
-        # Better for offline approach
-        model = None
-        if args.name == configs.DEEPLABV3_RESNET50:
-            model = torchvision.models.segmentation.deeplabv3_resnet50(
-                weights=torchvision.models.segmentation.DeepLabV3_ResNet50_Weights.COCO_WITH_VOC_LABELS_V1)
-        elif args.name == configs.DEEPLABV3_RESNET101:
-            model = torchvision.models.segmentation.deeplabv3_resnet101(
-                weights=torchvision.models.segmentation.DeepLabV3_ResNet101_Weights.COCO_WITH_VOC_LABELS_V1)
-        elif args.name == configs.FCN_RESNET50:
-            model = torchvision.models.segmentation.fcn_resnet50(
-                weights=torchvision.models.segmentation.FCN_ResNet50_Weights.COCO_WITH_VOC_LABELS_V1)
-        elif args.name == configs.FCN_RESNET101:
-            model = torchvision.models.segmentation.fcn_resnet101(
-                weights=torchvision.models.segmentation.FCN_ResNet101_Weights.COCO_WITH_VOC_LABELS_V1)
-
-        resize_size = (520, 520)
-        model.load_state_dict(torch.load(checkpoint_path))
-    elif args.name in configs.DIEHARDNET_VITS_CONFIGS:
-        model = timm.create_model(args.model, pretrained=True)
-        config = timm.data.resolve_data_config({}, model=model)
-        transform = timm.data.transforms_factory.create_transform(**config)
-    elif args.name in configs.DIEHARDNET_CLASSIFICATION_CONFIGS:
-        resize_size = (32, 32)
-        # Build model (Resnet only up to now)
-        optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'wd': args.wd}
-        n_classes = configs.CLASSES[args.dataset]
-        # model='hard_resnet20', n_classes=10, optim_params={}, loss='bce', error_model='random',
-        # inject_p=0.1, inject_epoch=0, order='relu-bn', activation='relu', nan=False, affine=True
-        model = build_model(model=args.model, n_classes=n_classes, optim_params=optim_params,
-                            loss=args.loss, inject_p=args.inject_p, order=args.order, activation=args.activation,
-                            affine=bool(args.affine), nan=bool(args.nan))
+    if args.name in ['deeplab', 'deeplab_relumax']:
+        optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'lr_min': 1e-8,
+                        'wd': args.wd, 'scheduler': args.scheduler}
+        model = build_model(args.model, configs.CLASSES[args.dataset], optim_params, args.loss, args.error_model, args.inject_p,
+                        args.inject_epoch, args.model_clip, args.nan, args.freeze, args.pretrained, args.activation)
+        
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['state_dict'])
         model = model.model
     else:
         dnn_log_helper.log_and_crash(fatal_string=f"{args.name} model invalid")
-    model.eval()
-    model = model.to(configs.DEVICE)
-    # Default values for CIFAR 10 and 100
-    if transform is None:
-        transform = torchvision.transforms.Compose([torchvision.transforms.Resize(size=resize_size),
-                                                    torchvision.transforms.ToTensor(),
-                                                    torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                                                     std=[0.229, 0.224, 0.225])])
 
+    model.eval()
+    for param in model.parameters():
+        param.requires_grad = False
+    model = model.to(configs.DEVICE)
+
+    # Default values for Cityscapes
+    if transform is None:
+        transform = ST.ExtCompose([
+            ST.ExtToTensor(),
+            ST.ExtNormalize(mean=[0.485, 0.456, 0.406],
+                            std=[0.229, 0.224, 0.225])
+        ])
 
     return model, transform
 
@@ -102,20 +77,9 @@ def load_model(args: argparse.Namespace) -> Tuple[torch.nn.Module, torchvision.t
 def load_dataset(batch_size: int, dataset: str, test_sample: int,
                  transform: torchvision.transforms.Compose) -> Tuple[List, List]:
     test_set = None
-    if dataset == configs.CIFAR10:
-        test_set = torchvision.datasets.cifar.CIFAR10(root=configs.CIFAR_DATASET_DIR, download=False, train=False,
-                                                      transform=transform)
-    elif dataset == configs.CIFAR100:
-        test_set = torchvision.datasets.cifar.CIFAR100(root=configs.CIFAR_DATASET_DIR, download=False, train=False,
-                                                       transform=transform)
-    elif dataset == configs.IMAGENET:
-        test_set = torchvision.datasets.imagenet.ImageNet(root=configs.IMAGENET_DATASET_DIR, transform=transform,
-                                                          split='val')
-    elif dataset == configs.COCO:
-        # This is only used when performing det/seg and these models already perform transforms
-        test_set = torchvision.datasets.coco.CocoDetection(root=configs.COCO_DATASET_VAL,
-                                                           annFile=configs.COCO_DATASET_ANNOTATIONS,
-                                                           transform=transform)
+    if dataset == configs.CITYSCAPES:
+        test_set = Cityscapes(root=configs.CITYSCAPES_DATASET_DIR, split='val', mode='fine', transform=transform)
+
     else:
         dnn_log_helper.log_and_crash(fatal_string=f"Incorrect dataset {dataset}")
 
@@ -123,28 +87,13 @@ def load_dataset(batch_size: int, dataset: str, test_sample: int,
     subset = torch.utils.data.SequentialSampler(range(test_sample))
     input_dataset, input_labels = list(), list()
 
-    # Data loader diff if it is coco
-    if dataset == configs.COCO:
-        # noinspection PyUnresolvedReferences
-        test_loader = torch.utils.data.DataLoader(dataset=test_set, sampler=subset, batch_size=batch_size,
-                                                  shuffle=False, pin_memory=True, collate_fn=lambda x: x)
-        for iterator in test_loader:
-            inputs, labels = list(), list()
-            for input_i, label_i in iterator:
-                inputs.append(input_i)
-                labels.append(label_i)
-            # Only the inputs must be in the device
-            input_dataset.append(torch.stack(inputs).to(configs.DEVICE))
-            # Labels keys dict_keys(['segmentation', 'area', 'iscrowd', 'image_id', 'bbox', 'category_id', 'id'])
-            input_labels.append(labels)
-    else:
-        # noinspection PyUnresolvedReferences
-        test_loader = torch.utils.data.DataLoader(dataset=test_set, sampler=subset, batch_size=batch_size,
-                                                  shuffle=False, pin_memory=True)
-        for inputs, labels in test_loader:
-            # Only the inputs must be in the device
-            input_dataset.append(inputs.to(configs.DEVICE))
-            input_labels.append(labels)
+    # noinspection PyUnresolvedReferences
+    test_loader = torch.utils.data.DataLoader(dataset=test_set, sampler=subset, batch_size=batch_size,
+                                              shuffle=False, pin_memory=True)
+    for inputs, labels in test_loader:
+        # Only the inputs must be in the device
+        input_dataset.append(inputs.to(configs.DEVICE))
+        input_labels.append(labels)
     # Fixed, no need to stack if they will only be used in the host side
     # input_dataset = torch.stack(input_dataset).to(configs.DEVICE)
     # Fixed, only the input must be in the GPU
@@ -348,12 +297,17 @@ def check_dnn_accuracy(predicted: Union[Dict[str, List[torch.tensor]], torch.ten
             gt_count += gt.shape[0]
             correct += torch.sum(torch.eq(pred, gt))
     elif dnn_goal == configs.SEGMENTATION:
+        meter = StreamSegMetrics(configs.CLASSES[configs.CITYSCAPES])
         for pred_i, gt in zip(predicted, ground_truth):
-            # TODO: Calculate the IoU here
-            gt_count += len(gt)
+            meter.update(gt.cpu().numpy(), pred_i.cpu().numpy())
+        mIoU = meter.get_results()["Mean IoU"]
 
     if output_logger:
-        output_logger.debug(f"Correct predicted samples:{correct} - ({(correct / gt_count) * 100:.2f}%)")
+        if dnn_goal == configs.CLASSIFICATION:
+            output_logger.debug(f"Correct predicted samples:{correct} - ({(correct / gt_count) * 100:.2f}%)")
+        elif dnn_goal == configs.SEGMENTATION:
+            output_logger.debug(f"mIoU: {(mIoU * 100):.2f}%)")
+            
 
 
 def update_golden(golden: torch.tensor, output: torch.tensor, dnn_goal: str) -> Dict[str, list]:
@@ -374,7 +328,7 @@ def copy_output_to_cpu(dnn_output: Union[torch.tensor, collections.OrderedDict],
     if dnn_goal == configs.CLASSIFICATION:
         return dnn_output.to("cpu")
     elif dnn_goal == configs.SEGMENTATION:
-        return dnn_output["out"].to('cpu')
+        return dnn_output.to('cpu')
 
 
 def forward(batched_input: torch.tensor, model: torch.nn.Module, model_name: str) -> torch.tensor:
