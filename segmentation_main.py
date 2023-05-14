@@ -3,24 +3,23 @@ import argparse
 import collections
 import logging
 import os
-import random
-import re
 import time
-from typing import Tuple, List, Dict, Union
+from typing import Tuple, List, Dict, Union, Any
 
 import torch
 import torchvision
 import yaml
-import timm
 
 import configs
 import console_logger
 import dnn_log_helper
 
+from pytorch_scripts.segmentation.transforms import ExtCompose
 from pytorch_scripts.segmentation.utils import build_model
 from pytorch_scripts.segmentation.cityscapes import Cityscapes
 from pytorch_scripts.segmentation.stream_metrics import StreamSegMetrics
 import pytorch_scripts.segmentation.transforms as ST
+
 
 class Timer:
     time_measure = 0
@@ -40,18 +39,17 @@ class Timer:
     def __repr__(self): return str(self)
 
 
-def load_model(args: argparse.Namespace) -> Tuple[torch.nn.Module, torchvision.transforms.Compose]:
+def load_model(args: argparse.Namespace) -> tuple[Any, ExtCompose]:
     checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
 
     resize_size, model = None, None
     # First option is the baseline option
-    transform = None
-    if args.name in ['deeplab', 'deeplab_relumax']:
+    if args.name in configs.DIEHARDNET_SEGMENTATION_CONFIGS:
         optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'lr_min': 1e-8,
                         'wd': args.wd, 'scheduler': args.scheduler}
-        model = build_model(args.model, configs.CLASSES[args.dataset], optim_params, args.loss, args.error_model, args.inject_p,
-                        args.inject_epoch, args.model_clip, args.nan, args.freeze, args.pretrained, args.activation)
-        
+        model = build_model(args.model, configs.CLASSES[args.dataset], optim_params, args.loss, args.error_model,
+                            args.inject_p, args.inject_epoch, args.model_clip, args.nan, args.freeze, args.pretrained,
+                            args.activation)
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['state_dict'])
         model = model.model
@@ -64,18 +62,16 @@ def load_model(args: argparse.Namespace) -> Tuple[torch.nn.Module, torchvision.t
     model = model.to(configs.DEVICE)
 
     # Default values for Cityscapes
-    if transform is None:
-        transform = ST.ExtCompose([
-            ST.ExtToTensor(),
-            ST.ExtNormalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225])
-        ])
-
+    transform = ST.ExtCompose([
+        ST.ExtToTensor(),
+        ST.ExtNormalize(mean=[0.485, 0.456, 0.406],
+                        std=[0.229, 0.224, 0.225])
+    ])
     return model, transform
 
 
 def load_dataset(batch_size: int, dataset: str, test_sample: int,
-                 transform: torchvision.transforms.Compose) -> Tuple[List, List]:
+                 transform: Union[torchvision.transforms.Compose, ExtCompose]) -> Tuple[List, List]:
     test_set = None
     if dataset == configs.CITYSCAPES:
         test_set = Cityscapes(root=configs.CITYSCAPES_DATASET_DIR, split='val', mode='fine', transform=transform)
@@ -84,7 +80,7 @@ def load_dataset(batch_size: int, dataset: str, test_sample: int,
         dnn_log_helper.log_and_crash(fatal_string=f"Incorrect dataset {dataset}")
 
     # noinspection PyUnresolvedReferences
-    subset = torch.utils.data.SequentialSampler(range(test_sample))
+    subset = torch.utils.data.SequentialSampler(range(0, test_sample * 100, 100))
     input_dataset, input_labels = list(), list()
 
     # noinspection PyUnresolvedReferences
@@ -204,30 +200,28 @@ def compare_segmentation(output_tensor: torch.tensor,
                          output_logger: logging.Logger,
                          setup_iteration: int) -> int:
     output_errors = 0
-    abs_threshold = configs.SEGMENTATION_ABS_THRESHOLD
     for img_id, (output_batch, golden_batch) in enumerate(zip(output_tensor, golden_tensor)):
-        # ------------ Check error on the whole output -------------------------------------------------------------
-        # Count only and save the output file
-        if abs_threshold == 0:
-            equal_elements = torch.sum(torch.eq(output_batch, golden_batch))
-        else:
-            equal_elements = torch.sum(torch.le(torch.abs(torch.subtract(output_batch, golden_batch)), abs_threshold))
-
-        diff_elements = abs(equal_elements - golden_batch.shape[0])
-        if diff_elements != 0:
-            # Save the batch
-            log_helper_file = re.match(r".*LOCAL:(\S+).log.*", dnn_log_helper.log_file_name).group(1)
-            # Random int will guarantee that files are not overriden (I hope so)
-            random_int = random.randrange(configs.RANDOM_INT_LIMIT)
-            full_sdc_file_name = f"{log_helper_file}_sdc_{batch_id}_{img_id}_{setup_iteration}_{random_int}.pt"
-            error_detail_out = f"batch:{batch_id} img:{img_id} has {diff_elements} different elements."
-            error_detail_out += f" Saving data on {full_sdc_file_name} file."
-            # Clone before saving, because using views will save the entire tensor
-            torch.save(torch.clone(output_batch), full_sdc_file_name)
+        # On segmentation is better to do like this
+        less_equal = torch.le(torch.abs(torch.subtract(output_batch, golden_batch)), configs.SEGMENTATION_ABS_THRESHOLD)
+        if bool(torch.all(less_equal)) is False:
+            # ------------ Check error on the whole output -------------------------------------------------------------
+            diff_indices = torch.nonzero(less_equal)
+            for idx in diff_indices:
+                output_errors += 1
+                if output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
+                    gold, found = golden_batch[idx], output_batch[idx]
+                    error_detail_ctr = f"batch:{batch_id} img:{img_id} i:{idx} g:{gold} o:{found}"
+                    if output_logger:
+                        output_logger.error(error_detail_ctr)
+                    dnn_log_helper.log_error_detail(error_detail_ctr)
+            # ------------ Check the critical errors -------------------------------------------------------------------
+            meter = StreamSegMetrics(configs.CLASSES[configs.CITYSCAPES])
+            meter.update(output_batch.numpy(), golden_batch.numpy())
+            meter_results = meter.get_results()
+            error_detail_ctr = "details:" + " ".join([f"{k}={v}" for k, v in meter_results.items()])
             if output_logger:
-                output_logger.error(error_detail_out)
-            dnn_log_helper.log_error_detail(error_detail_out)
-            output_errors += 1
+                output_logger.error(error_detail_ctr)
+            dnn_log_helper.log_error_detail(error_detail_ctr)
 
     return output_errors
 
@@ -296,18 +290,14 @@ def check_dnn_accuracy(predicted: Union[Dict[str, List[torch.tensor]], torch.ten
         for pred, gt in zip(predicted, ground_truth):
             gt_count += gt.shape[0]
             correct += torch.sum(torch.eq(pred, gt))
+        if output_logger:
+            output_logger.debug(f"Correct predicted samples:{correct} - ({(correct / gt_count) * 100:.2f}%)")
     elif dnn_goal == configs.SEGMENTATION:
         meter = StreamSegMetrics(configs.CLASSES[configs.CITYSCAPES])
         for pred_i, gt in zip(predicted, ground_truth):
             meter.update(gt.cpu().numpy(), pred_i.cpu().numpy())
-        mIoU = meter.get_results()["Mean IoU"]
-
-    if output_logger:
-        if dnn_goal == configs.CLASSIFICATION:
-            output_logger.debug(f"Correct predicted samples:{correct} - ({(correct / gt_count) * 100:.2f}%)")
-        elif dnn_goal == configs.SEGMENTATION:
-            output_logger.debug(f"mIoU: {(mIoU * 100):.2f}%)")
-            
+        m_iou = meter.get_results()["Mean IoU"]
+        output_logger.debug(f"mIoU: {(m_iou * 100):.2f}%)")
 
 
 def update_golden(golden: torch.tensor, output: torch.tensor, dnn_goal: str) -> Dict[str, list]:
@@ -329,52 +319,6 @@ def copy_output_to_cpu(dnn_output: Union[torch.tensor, collections.OrderedDict],
         return dnn_output.to("cpu")
     elif dnn_goal == configs.SEGMENTATION:
         return dnn_output.to('cpu')
-
-
-def forward(batched_input: torch.tensor, model: torch.nn.Module, model_name: str) -> torch.tensor:
-    pretrained_configs = configs.DIEHARDNET_TRANS_LEARNING_CONFIGS + configs.DIEHARDNET_SEGMENTATION_CONFIGS
-    pretrained_configs +=  configs.DIEHARDNET_VITS_CONFIGS
-    if model_name in pretrained_configs:
-        return model(batched_input)
-    else:
-        return model(batched_input, inject=False)
-
-
-def show(all_batches_output: torch.tensor, all_batches_input: torch.tensor, batch_id: int, model: str):
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import torchvision.transforms.functional as F
-    plt.rcParams["savefig.bbox"] = 'tight'
-
-    normalized_masks = torch.nn.functional.softmax(all_batches_output, dim=1)
-    num_classes = normalized_masks.shape[1]
-    for batch, classes in enumerate(normalized_masks):
-        dog1_masks = normalized_masks[batch]
-        class_dim = 0
-        dog1_all_classes_masks = dog1_masks.argmax(class_dim) == torch.arange(num_classes)[:, None, None]
-        dog1_int = all_batches_input[batch].to("cpu").type(torch.uint8)
-        # noinspection PyTypeChecker
-        dog_with_all_masks = torchvision.utils.draw_segmentation_masks(dog1_int, masks=dog1_all_classes_masks)
-        fig, ax = plt.subplots(nrows=1, ncols=1, squeeze=False)
-        dog_with_all_masks = np.asarray(F.to_pil_image(dog_with_all_masks.detach()))
-        ax[0, 0].imshow(dog_with_all_masks)
-        plt.savefig(f"./{model}_test{batch}_{batch_id}.jpg")
-    # for batch, classes in enumerate(normalized_masks):
-    # fig, axs = plt.subplots(ncols=5, nrows=5, squeeze=False)
-    # iterator = iter(classes)
-    # for i in range(5):
-    #     for j in range(5):
-    #         if i * 5 + j >= len(classes):
-    #             break
-    #         img = next(iterator)
-    #         img = img.detach()
-    #         img = F.to_pil_image(img)
-    #         axs[i, j].imshow(np.asarray(img))
-    #         axs[i, j].set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
-    # img_input = all_batches_input[batch].to("cpu").detach()
-    # img_input = np.asarray(F.to_pil_image(img_input))
-    # axs[4, 2].imshow(img_input)
-    # plt.savefig(f"./test{batch}.jpg")
 
 
 def main():
@@ -434,11 +378,11 @@ def main():
     setup_iteration = 0
     while setup_iteration < iterations:
         # Loop over the input list
-        batch_id = 0 # It must be like this, because I may reload the list in the middle of the process
+        batch_id = 0  # It must be like this, because I may reload the list in the middle of the process
         while batch_id < len(input_list):
             timer.tic()
             dnn_log_helper.start_iteration()
-            dnn_output = forward(batched_input=input_list[batch_id], model=model, model_name=args.name)
+            dnn_output = model(input_list[batch_id], inject=False)
             torch.cuda.synchronize(device=configs.DEVICE)
             dnn_log_helper.end_iteration()
             timer.toc()

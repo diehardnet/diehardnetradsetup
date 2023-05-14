@@ -9,10 +9,11 @@ from socket import gethostname
 
 import configs
 
-ALL_DNNS = configs.DIEHARDNET_CLASSIFICATION_CONFIGS
-ALL_DNNS += configs.DIEHARDNET_TRANS_LEARNING_CONFIGS
-ALL_DNNS += configs.DIEHARDNET_SEGMENTATION_CONFIGS
-ALL_DNNS += configs.DIEHARDNET_VITS_CONFIGS
+# ALL_DNNS = configs.DIEHARDNET_CLASSIFICATION_CONFIGS
+# ALL_DNNS += configs.DIEHARDNET_TRANS_LEARNING_CONFIGS
+# ALL_DNNS += configs.DIEHARDNET_SEGMENTATION_CONFIGS
+# ALL_DNNS += configs.DIEHARDNET_VITS_CONFIGS
+ALL_DNNS = configs.DIEHARDNET_SEGMENTATION_CONFIGS
 
 CONFIG_FILE = "/etc/radiation-benchmarks.conf"
 ITERATIONS = int(1e12)
@@ -24,8 +25,7 @@ TEST_SAMPLES = {
     **{k: 128 * 8 for k in configs.DIEHARDNET_CLASSIFICATION_CONFIGS},
     **{k: 64 * 4 for k in configs.DIEHARDNET_TRANS_LEARNING_CONFIGS},
     **{k: 64 * 4 for k in configs.DIEHARDNET_VITS_CONFIGS},
-    **{k: 32 * 1 for k in configs.DIEHARDNET_SEGMENTATION_CONFIGS},
-
+    **{k: 128 for k in configs.DIEHARDNET_SEGMENTATION_CONFIGS},
 }
 
 
@@ -51,7 +51,7 @@ def configure(download_datasets: bool, download_models: bool):
         download_datasets_process()
 
     current_directory = os.getcwd()
-    script_name = "main.py"
+    script_name = "segmentation_main.py"
     for dnn_model in ALL_DNNS:
         # Default filename will build the other names
         default_file_name = dnn_model.replace(".yaml", "")
