@@ -1,23 +1,10 @@
-name: deeplab
+name: deeplabv3_baseline
 model: deeplab
 dataset: cityscapes
 model_clip: False
-
-batch_size: 8
-
-checkpointdir: /path/to/folder/
 ckpt: baseline.ckpt
-
-goldpath: null
-generate: True
-iterations: 1e12
-testsamples: 100
-
-disableconsolelog: False
-
-### Ignore
+batch_size: 8
 mode: test
-data_dir: /path/to/data/
 size: 769
 num_gpus: 1
 activation: max
@@ -35,3 +22,13 @@ inject_p: 0.0
 inject_epoch: 0
 seed: 0
 comment: test
+freeze: false
+
+### Ignore
+#checkpointdir: /path/to/folder/
+#goldpath: null
+#generate: True
+#iterations: 1e12
+#testsamples: 100
+#disableconsolelog: False
+#data_dir: /path/to/data/

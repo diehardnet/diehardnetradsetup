@@ -1,23 +1,10 @@
-name: deeplab
+name: deeplabv3_clip_train_aware
 model: deeplab
 dataset: cityscapes
 model_clip: True
-
 batch_size: 8
-
-checkpointdir: /path/to/folder/
 ckpt: clip_train_aware.ckpt
-
-goldpath: null
-generate: True
-iterations: 1e12
-testsamples: 100
-
-disableconsolelog: False
-
-### Ignore
 mode: test
-data_dir: /path/to/data/
 size: 769
 num_gpus: 1
 activation: max
@@ -35,3 +22,16 @@ inject_p: 0.0
 inject_epoch: 0
 seed: 0
 comment: test
+freeze: false
+
+
+#goldpath: null
+#generate: True
+#iterations: 1e12
+#testsamples: 100
+
+#disableconsolelog: False
+#checkpointdir: /path/to/folder/
+#data_dir: /path/to/data/
+
+### Ignore
