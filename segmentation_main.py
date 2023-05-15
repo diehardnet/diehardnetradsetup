@@ -51,7 +51,7 @@ def load_model(args: argparse.Namespace) -> tuple[Any, ExtCompose]:
                             args.inject_p, args.inject_epoch, args.model_clip, args.nan, args.freeze, args.pretrained,
                             args.activation)
         checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint['state_dict'])
+        model = checkpoint['model']
         model = model.model
     else:
         dnn_log_helper.log_and_crash(fatal_string=f"{args.name} model invalid")
