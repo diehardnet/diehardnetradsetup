@@ -3,13 +3,13 @@ model: deeplab
 dataset: cityscapes
 model_clip: False
 ckpt: baseline.ckpt
-batch_size: 8
+batch_size: 1
 mode: test
 size: 769
 num_gpus: 1
 activation: max
 pretrained: True
-nan: True
+nan: False
 loss: ce
 grad_clip: null
 epochs: 100

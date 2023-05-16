@@ -102,7 +102,7 @@ def load_dataset(batch_size: int, dataset: str, test_sample: int,
         dnn_log_helper.log_and_crash(fatal_string=f"Incorrect dataset {dataset}")
 
     # noinspection PyUnresolvedReferences
-    subset = torch.utils.data.SequentialSampler(range(0, test_sample * 100, 100))
+    subset = torch.utils.data.SequentialSampler(range(0, test_sample * 200, 200))
     input_dataset, input_labels = list(), list()
 
     # noinspection PyUnresolvedReferences
@@ -404,7 +404,7 @@ def main():
         while batch_id < len(input_list):
             timer.tic()
             dnn_log_helper.start_iteration()
-            dnn_output = model(input_list[batch_id], inject=False)
+            dnn_output = model(input_list[batch_id])
             torch.cuda.synchronize(device=configs.DEVICE)
             dnn_log_helper.end_iteration()
             timer.toc()
