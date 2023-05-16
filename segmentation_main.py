@@ -7,6 +7,8 @@ import time
 from typing import Tuple, List, Dict, Union, Any
 
 import torch
+import torch.nn as nn
+from collections import OrderedDict
 import torchvision
 import yaml
 
@@ -38,6 +40,16 @@ class Timer:
 
     def __repr__(self): return str(self)
 
+def remove_all_hooks(model):
+    for name, child in model._modules.items():
+        if child is not None:
+            if hasattr(child, "_forward_hooks"):
+                child._forward_hooks = OrderedDict()
+            elif hasattr(child, "_forward_pre_hooks"):
+                child._forward_pre_hooks = OrderedDict()
+            elif hasattr(child, "_backward_hooks"):
+                child._backward_hooks = OrderedDict()
+            remove_all_hooks(child)
 
 def load_model(args: argparse.Namespace) -> tuple[Any, ExtCompose]:
     checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
@@ -53,6 +65,16 @@ def load_model(args: argparse.Namespace) -> tuple[Any, ExtCompose]:
         checkpoint = torch.load(checkpoint_path)['hyper_parameters']
         model = checkpoint['model']
         model = model.model
+
+        # Hook clipping and NaNs
+        remove_all_hooks(model)
+
+        for m in model.modules():
+            if isinstance(m, nn.Conv2d):
+                if args.model_clip:
+                    m.register_forward_hook(lambda module, input, output : torch.clip(output, -6, 6))
+                if args.nan:
+                    m.register_forward_hook(lambda module, input, output : torch.nan_to_num(output, 0.0))
     else:
         dnn_log_helper.log_and_crash(fatal_string=f"{args.name} model invalid")
 
