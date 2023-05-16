@@ -319,7 +319,8 @@ def check_dnn_accuracy(predicted: Union[Dict[str, List[torch.tensor]], torch.ten
             output_logger.debug(f"Correct predicted samples:{correct} - ({(correct / gt_count) * 100:.2f}%)")
     elif dnn_goal == configs.SEGMENTATION:
         meter = StreamSegMetrics(configs.CLASSES[configs.CITYSCAPES])
-        for pred_i, gt in zip(predicted, ground_truth):
+        predicted_list = predicted["output_list"]
+        for pred_i, gt in zip(predicted_list, ground_truth):
             if len(pred_i.shape) == 4:
                 _, pred_i = torch.max(pred_i, 1)
             elif len(pred_i.shape) == 3:
