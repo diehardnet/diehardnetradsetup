@@ -25,7 +25,7 @@ TEST_SAMPLES = {
     **{k: 128 * 8 for k in configs.DIEHARDNET_CLASSIFICATION_CONFIGS},
     **{k: 64 * 4 for k in configs.DIEHARDNET_TRANS_LEARNING_CONFIGS},
     **{k: 64 * 4 for k in configs.DIEHARDNET_VITS_CONFIGS},
-    **{k: 8 for k in configs.DIEHARDNET_SEGMENTATION_CONFIGS},
+    **{k: 4 for k in configs.DIEHARDNET_SEGMENTATION_CONFIGS},
 }
 
 
