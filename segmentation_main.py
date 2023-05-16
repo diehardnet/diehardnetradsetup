@@ -50,7 +50,7 @@ def load_model(args: argparse.Namespace) -> tuple[Any, ExtCompose]:
         model = build_model(args.model, configs.CLASSES[args.dataset], optim_params, args.loss, args.error_model,
                             args.inject_p, args.inject_epoch, args.model_clip, args.nan, args.freeze, args.pretrained,
                             args.activation)
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path)['hyper_parameters']
         model = checkpoint['model']
         model = model.model
     else:
