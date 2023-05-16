@@ -101,7 +101,6 @@ def load_dataset(batch_size: int, dataset: str, test_sample: int,
     else:
         dnn_log_helper.log_and_crash(fatal_string=f"Incorrect dataset {dataset}")
 
-    # noinspection PyUnresolvedReferences
     max_samples = 500
     interval = int(max_samples / test_sample)
     subset = torch.utils.data.SequentialSampler(range(0, max_samples, interval))
@@ -384,9 +383,9 @@ def main():
     iterations = args.iterations
 
     # Load the model
+    timer.tic()
     model, transform = load_model(args=args)
     # First step is to load the inputs in the memory
-    timer.tic()
     input_list, input_labels = load_dataset(batch_size=batch_size, dataset=dataset, test_sample=test_sample,
                                             transform=transform)
     timer.toc()
@@ -405,7 +404,7 @@ def main():
 
     if terminal_logger:
         terminal_logger.debug("\n".join(args_text_list))
-        terminal_logger.debug(f"Time necessary to load the inputs: {input_load_time}")
+        terminal_logger.debug(f"Time necessary to load the inputs and model: {input_load_time}")
         terminal_logger.debug(f"Time necessary to load the golden outputs: {golden_load_diff_time}")
 
     # Main setup loop
