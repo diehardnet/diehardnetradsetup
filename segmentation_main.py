@@ -102,7 +102,9 @@ def load_dataset(batch_size: int, dataset: str, test_sample: int,
         dnn_log_helper.log_and_crash(fatal_string=f"Incorrect dataset {dataset}")
 
     # noinspection PyUnresolvedReferences
-    subset = torch.utils.data.SequentialSampler(range(0, test_sample * 200, 200))
+    max_samples = 500
+    interval = int(max_samples / test_sample)
+    subset = torch.utils.data.SequentialSampler(range(0, max_samples, interval))
     input_dataset, input_labels = list(), list()
 
     # noinspection PyUnresolvedReferences
@@ -240,7 +242,7 @@ def compare_segmentation(output_tensor: torch.tensor,
                     dnn_log_helper.log_error_detail(error_detail_ctr)
             # ------------ Check the critical errors -------------------------------------------------------------------
             _, pred = torch.max(output_batch, 1)  # so that pred now is (B x W x H) like y
-            meter.update(pred.cpu().numpy(), golden_batch.cpu().numpy())
+            meter.update(pred.numpy(), golden_batch.numpy())
             meter_results = meter.get_results()
             error_detail_ctr = "details:" + " ".join([f"{k}={v}" for k, v in meter_results.items()])
             if output_logger:
