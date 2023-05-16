@@ -317,6 +317,12 @@ def check_dnn_accuracy(predicted: Union[Dict[str, List[torch.tensor]], torch.ten
     elif dnn_goal == configs.SEGMENTATION:
         meter = StreamSegMetrics(configs.CLASSES[configs.CITYSCAPES])
         for pred_i, gt in zip(predicted, ground_truth):
+            if len(pred_i.shape) == 4:
+                _, pred_i = torch.max(pred_i, 1)
+            elif len(pred_i.shape) == 3:
+                _, pred_i = torch.max(pred_i, 0)
+            else:
+                assert True, f'pred_i.shape = {pred_i.shape}'
             meter.update(gt.cpu().numpy(), pred_i.cpu().numpy())
         m_iou = meter.get_results()["Mean IoU"]
         output_logger.debug(f"mIoU: {(m_iou * 100):.2f}%)")
