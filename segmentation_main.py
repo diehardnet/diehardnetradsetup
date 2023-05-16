@@ -222,6 +222,8 @@ def compare_segmentation(output_tensor: torch.tensor,
                          output_logger: logging.Logger,
                          setup_iteration: int) -> int:
     output_errors = 0
+    meter = StreamSegMetrics(configs.CLASSES[configs.CITYSCAPES])
+
     for img_id, (output_batch, golden_batch) in enumerate(zip(output_tensor, golden_tensor)):
         # On segmentation is better to do like this
         less_equal = torch.le(torch.abs(torch.subtract(output_batch, golden_batch)), configs.SEGMENTATION_ABS_THRESHOLD)
@@ -237,13 +239,14 @@ def compare_segmentation(output_tensor: torch.tensor,
                         output_logger.error(error_detail_ctr)
                     dnn_log_helper.log_error_detail(error_detail_ctr)
             # ------------ Check the critical errors -------------------------------------------------------------------
-            meter = StreamSegMetrics(configs.CLASSES[configs.CITYSCAPES])
-            meter.update(output_batch.numpy(), golden_batch.numpy())
+            _, pred = torch.max(output_batch, 1)  # so that pred now is (B x W x H) like y
+            meter.update(pred.cpu().numpy(), golden_batch.cpu().numpy())
             meter_results = meter.get_results()
             error_detail_ctr = "details:" + " ".join([f"{k}={v}" for k, v in meter_results.items()])
             if output_logger:
                 output_logger.error(error_detail_ctr)
             dnn_log_helper.log_error_detail(error_detail_ctr)
+            meter.fast_reset()
 
     return output_errors
 
@@ -322,7 +325,7 @@ def check_dnn_accuracy(predicted: Union[Dict[str, List[torch.tensor]], torch.ten
             elif len(pred_i.shape) == 3:
                 _, pred_i = torch.max(pred_i, 0)
             else:
-                assert True, f'pred_i.shape = {pred_i.shape}'
+                raise ValueError(f'pred_i.shape = {pred_i.shape}')
             meter.update(gt.cpu().numpy(), pred_i.cpu().numpy())
         m_iou = meter.get_results()["Mean IoU"]
         output_logger.debug(f"mIoU: {(m_iou * 100):.2f}%)")
