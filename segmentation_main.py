@@ -59,9 +59,9 @@ def load_model(args: argparse.Namespace) -> tuple[Any, ExtCompose]:
     if args.name in configs.DIEHARDNET_SEGMENTATION_CONFIGS:
         optim_params = {'optimizer': args.optimizer, 'epochs': args.epochs, 'lr': args.lr, 'lr_min': 1e-8,
                         'wd': args.wd, 'scheduler': args.scheduler}
-        model = build_model(args.model, configs.CLASSES[args.dataset], optim_params, args.loss, args.error_model,
-                            args.inject_p, args.inject_epoch, args.model_clip, args.nan, args.freeze, args.pretrained,
-                            args.activation)
+        # model = build_model(args.model, configs.CLASSES[args.dataset], optim_params, args.loss, args.error_model,
+        #                     args.inject_p, args.inject_epoch, args.model_clip, args.nan, args.freeze, args.pretrained,
+        #                     args.activation)
         checkpoint = torch.load(checkpoint_path)['hyper_parameters']
         model = checkpoint['model']
         model = model.model
