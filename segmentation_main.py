@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 import argparse
-import collections
 import logging
 import os
 from collections import OrderedDict
@@ -248,10 +247,8 @@ def compare_segmentation(output_tensor: torch.tensor,
             error_detail_out += f"diff_t nan:{has_nan_diff} inf:{has_inf_diff} min:{min_val_diff} max:{max_val_diff}"
             output_errors += 1
             # ------------ Check the critical errors -------------------------------------------------------------------
-            assert (
-                (len(output_batch.shape) == 3) and (len(golden_batch.shape) == 3),
-                f"Shape: {golden_batch.shape} {golden_batch.shape}"
-            )
+            if len(output_batch.shape) != 3 or len(golden_batch.shape) != 3:
+                raise ValueError(f"Shape: {output_batch.shape} {golden_batch.shape}")
 
             _, pred = torch.max(output_batch, 1)  # so that pred now is (B x W x H) like y
             _, gold = torch.max(golden_batch, 1)  # so that pred now is (B x W x H) like y
