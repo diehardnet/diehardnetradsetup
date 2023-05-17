@@ -344,7 +344,7 @@ def check_dnn_accuracy(predicted: Union[Dict[str, List[torch.tensor]], torch.ten
             meter.update(gt.cpu().numpy(), pred_i.cpu().numpy())
         stats = meter.get_results()
         m_iou = stats["Mean IoU"]
-        print(stats)
+        output_logger.debug(f"STAS: {stats}")
         output_logger.debug(f"mIoU: {(m_iou * 100):.2f}%)")
 
 
