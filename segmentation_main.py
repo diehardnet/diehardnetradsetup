@@ -249,7 +249,11 @@ def compare_segmentation(output_tensor: torch.tensor,
             output_errors += 1
             # ------------ Check the critical errors -------------------------------------------------------------------
             _, pred = torch.max(output_batch, 1)  # so that pred now is (B x W x H) like y
-            meter.update(pred.numpy(), golden_batch.numpy())
+            _, gold = torch.max(golden_batch, 1)  # so that pred now is (B x W x H) like y
+
+            assert  (len(pred.shape) == 4) and (len(gold.shape) == 4), f"Incorrect shape: {pred.shape}"
+
+            meter.update(pred.numpy(), gold.numpy())
             meter_results = meter.get_results()
             error_detail_ctr = "details:" + " ".join([f"{k}={v}" for k, v in meter_results.items()])
             if output_logger:
@@ -330,13 +334,13 @@ def check_dnn_accuracy(predicted: Union[Dict[str, List[torch.tensor]], torch.ten
         meter = StreamSegMetrics(configs.CLASSES[configs.CITYSCAPES])
         predicted_list = predicted["output_list"]
         for pred_i, gt in zip(predicted_list, ground_truth):
-            # if len(pred_i.shape) == 4:
-            #     _, pred_i = torch.max(pred_i, 1)
-            # elif len(pred_i.shape) == 3:
-            #     _, pred_i = torch.max(pred_i, 0)
-            # else:
-            #     raise ValueError(f'pred_i.shape = {pred_i.shape}')
-            meter.update(gt.numpy(), pred_i.numpy())
+            if len(pred_i.shape) == 4:
+                _, pred_i = torch.max(pred_i, 1)
+            elif len(pred_i.shape) == 3:
+                _, pred_i = torch.max(pred_i, 0)
+            else:
+                raise ValueError(f'pred_i.shape = {pred_i.shape}')
+            meter.update(gt.cpu().numpy(), pred_i.cpu().numpy())
         m_iou = meter.get_results()["Mean IoU"]
         output_logger.debug(f"mIoU: {(m_iou * 100):.2f}%)")
 
@@ -349,12 +353,7 @@ def update_golden(golden: torch.tensor, output: torch.tensor, dnn_goal: str) -> 
                           for output_batch in output])
         )
     elif dnn_goal == configs.SEGMENTATION:
-        gt_list = list()
-        for pred_i in output:
-            assert len(pred_i.shape) == 4, f"Incorrect shape: {pred_i.shape}"
-            _, pred_i = torch.max(pred_i, 1)
-            gt_list.append(pred_i)
-        golden["output_list"].append(torch.tensor(gt_list))
+        golden["output_list"].append(output)
 
     return golden
 
