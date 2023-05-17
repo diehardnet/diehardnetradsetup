@@ -3,24 +3,22 @@ import argparse
 import collections
 import logging
 import os
-import time
+from collections import OrderedDict
 from typing import Tuple, List, Dict, Union, Any
 
+import time
 import torch
 import torch.nn as nn
-from collections import OrderedDict
 import torchvision
 import yaml
 
 import configs
 import console_logger
 import dnn_log_helper
-
-from pytorch_scripts.segmentation.transforms import ExtCompose
-from pytorch_scripts.segmentation.utils import build_model
+import pytorch_scripts.segmentation.transforms as ST
 from pytorch_scripts.segmentation.cityscapes import Cityscapes
 from pytorch_scripts.segmentation.stream_metrics import StreamSegMetrics
-import pytorch_scripts.segmentation.transforms as ST
+from pytorch_scripts.segmentation.transforms import ExtCompose
 
 
 class Timer:
@@ -40,6 +38,7 @@ class Timer:
 
     def __repr__(self): return str(self)
 
+
 def remove_all_hooks(model):
     for name, child in model._modules.items():
         if child is not None:
@@ -50,6 +49,7 @@ def remove_all_hooks(model):
             elif hasattr(child, "_backward_hooks"):
                 child._backward_hooks = OrderedDict()
             remove_all_hooks(child)
+
 
 def load_model(args: argparse.Namespace) -> tuple[Any, ExtCompose]:
     checkpoint_path = f"{args.checkpointdir}/{args.ckpt}"
@@ -72,9 +72,9 @@ def load_model(args: argparse.Namespace) -> tuple[Any, ExtCompose]:
         for m in model.modules():
             if isinstance(m, nn.Conv2d):
                 if args.model_clip:
-                    m.register_forward_hook(lambda module, input, output : torch.clip(output, -6, 6))
+                    m.register_forward_hook(lambda module, input, output: torch.clip(output, -6, 6))
                 if args.nan:
-                    m.register_forward_hook(lambda module, input, output : torch.nan_to_num(output, 0.0))
+                    m.register_forward_hook(lambda module, input, output: torch.nan_to_num(output, 0.0))
     else:
         dnn_log_helper.log_and_crash(fatal_string=f"{args.name} model invalid")
 
@@ -226,11 +226,11 @@ def compare_segmentation(output_tensor: torch.tensor,
     meter = StreamSegMetrics(configs.CLASSES[configs.CITYSCAPES])
 
     for img_id, (output_batch, golden_batch) in enumerate(zip(output_tensor, golden_tensor)):
-        # On segmentation is better to do like this
-        less_equal = torch.le(torch.abs(torch.subtract(output_batch, golden_batch)), configs.SEGMENTATION_ABS_THRESHOLD)
-        if bool(torch.all(less_equal)) is False:
+        if equal(lhs=output_batch, rhs=golden_batch) is False:
             # ------------ Check error on the whole output -------------------------------------------------------------
-            diff_indices = torch.nonzero(less_equal)
+            diff_indices = torch.nonzero(
+                torch.le(torch.abs(torch.subtract(output_batch, golden_batch)), configs.SEGMENTATION_ABS_THRESHOLD)
+            )
             for idx in diff_indices:
                 output_errors += 1
                 if output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
