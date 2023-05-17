@@ -217,28 +217,36 @@ def compare_classification(output_tensor: torch.tensor,
     return output_errors
 
 
+def describe_error(input_tensor: torch.tensor) -> Tuple[int, int, float, float]:
+    flattened_tensor = input_tensor.flatten()
+    is_nan_tensor, is_inf_tensor = torch.isnan(flattened_tensor), torch.isinf(flattened_tensor)
+    has_nan, has_inf = int(torch.any(is_nan_tensor)), int(torch.any(is_inf_tensor))
+    filtered_tensor = flattened_tensor[~is_nan_tensor & ~is_inf_tensor]
+    min_val = float(torch.min(filtered_tensor)) if filtered_tensor.numel() > 0 else 0
+    max_val = float(torch.max(filtered_tensor)) if filtered_tensor.numel() > 0 else 0
+    return has_nan, has_inf, min_val, max_val
+
+
 def compare_segmentation(output_tensor: torch.tensor,
                          golden_tensor: torch.tensor,
                          batch_id: int,
-                         output_logger: logging.Logger,
-                         setup_iteration: int) -> int:
+                         output_logger: logging.Logger) -> int:
     output_errors = 0
     meter = StreamSegMetrics(configs.CLASSES[configs.CITYSCAPES])
 
     for img_id, (output_batch, golden_batch) in enumerate(zip(output_tensor, golden_tensor)):
         if equal(lhs=output_batch, rhs=golden_batch) is False:
             # ------------ Check error on the whole output -------------------------------------------------------------
-            diff_indices = torch.nonzero(
-                torch.le(torch.abs(torch.subtract(output_batch, golden_batch)), configs.SEGMENTATION_ABS_THRESHOLD)
-            )
-            for idx in diff_indices:
-                output_errors += 1
-                if output_errors < configs.MAXIMUM_ERRORS_PER_ITERATION:
-                    gold, found = golden_batch[idx], output_batch[idx]
-                    error_detail_ctr = f"batch:{batch_id} img:{img_id} i:{idx} g:{gold} o:{found}"
-                    if output_logger:
-                        output_logger.error(error_detail_ctr)
-                    dnn_log_helper.log_error_detail(error_detail_ctr)
+            # Not necessary to save everything, only the good info
+            # Data on output tensor
+            has_nan, has_inf, min_val, max_val = describe_error(input_tensor=output_batch)
+            err_string = f"batch:{batch_id} imgid:{img_id} "
+            error_detail_out = f"{err_string} output_t nan:{has_nan} inf:{has_inf} min:{min_val} max:{max_val} "
+            # Data on abs differences
+            abs_diff = torch.abs(torch.subtract(golden_batch, output_batch))
+            has_nan_diff, has_inf_diff, min_val_diff, max_val_diff = describe_error(input_tensor=abs_diff)
+            error_detail_out += f"diff_t nan:{has_nan_diff} inf:{has_inf_diff} min:{min_val_diff} max:{max_val_diff}"
+            output_errors += 1
             # ------------ Check the critical errors -------------------------------------------------------------------
             _, pred = torch.max(output_batch, 1)  # so that pred now is (B x W x H) like y
             meter.update(pred.numpy(), golden_batch.numpy())
@@ -301,7 +309,7 @@ def compare(output_tensor: torch.tensor,
         output_errors = compare_segmentation(output_tensor=output_tensor,
                                              golden_tensor=golden_tensor,
                                              batch_id=batch_id,
-                                             output_logger=output_logger, setup_iteration=setup_iteration)
+                                             output_logger=output_logger)
     # ------------ log and return
     if output_errors != 0:
         dnn_log_helper.log_error_count(error_count=output_errors)
