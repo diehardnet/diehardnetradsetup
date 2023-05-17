@@ -248,10 +248,10 @@ def compare_segmentation(output_tensor: torch.tensor,
             error_detail_out += f"diff_t nan:{has_nan_diff} inf:{has_inf_diff} min:{min_val_diff} max:{max_val_diff}"
             output_errors += 1
             # ------------ Check the critical errors -------------------------------------------------------------------
+            assert (len(output_batch.shape) == 4) and (len(golden_batch.shape) == 4), f"Shape: {golden_batch.shape}"
+
             _, pred = torch.max(output_batch, 1)  # so that pred now is (B x W x H) like y
             _, gold = torch.max(golden_batch, 1)  # so that pred now is (B x W x H) like y
-
-            assert  (len(pred.shape) == 4) and (len(gold.shape) == 4), f"Incorrect shape: {pred.shape}"
 
             meter.update(pred.numpy(), gold.numpy())
             meter_results = meter.get_results()
