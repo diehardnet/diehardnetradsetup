@@ -23,8 +23,21 @@ def execute_cmd(cmd):
         raise ValueError(f"Could not execute {cmd}")
 
 
+def parse_nvbitfi_log_file(config_name, group, error_model, base_dir, injection_count):
+    base_path = f"{base_dir}/logs/{config_name}"
+    full_path = f"{base_path}/{config_name}-group{group}-model{error_model}-icount{injection_count}"
+    print(full_path)
+    exit(0)
+    stdout_diff = f"{full_path}/stdout_diff.log"
+    stderr_diff = f"{full_path}/stderr_diff.log"
+    inj_info = f"{full_path}/nvbitfi-injection-info.txt"
+    return_infos = {"nan": None, "inf": None, "val": None}
+    return return_infos
+
+
 def main():
     data_list = list()
+    nan_data_list = list()
     fi_models = dict(FLIP_SINGLE_BIT=0, RANDOM_VALUE=2, ZERO_VALUE=3, WARP_RANDOM_VALUE=4, WARP_ZERO_VALUE=5)
     diehardnet_configs = [
         # Baseline
@@ -81,6 +94,13 @@ def main():
                                                      fi_model=fi_model, group=fp32)
                         full_log_file = f"{rad_log_dir}/{log_file}"
                         new_line = parse_log_file(log_path=full_log_file)
+                        return_info_nans = parse_nvbitfi_log_file(config_name=config, group=fp32,
+                                                                  error_model=fi_model, base_dir=new_path,
+                                                                  injection_count=it)
+                        nan_data_list.append(dict(
+                            config=config, fault_it=it,
+                            fi_model=fi_model, group=fp32, **return_info_nans
+                        ))
                         if len(new_line) == 1:
                             new_line = new_line[0]
                             new_line["fi_model"], new_line["group"] = fi_model, fp32_str
@@ -88,30 +108,30 @@ def main():
                         elif len(new_line) > 1:
                             raise ValueError("Incorrect size of new line")
 
-    for tar_file, datasets in tar_files_imagenet.items():
-        tar_full_path = f"{data_location}/{tar_file}.tar.gz"
-        new_path = f"{tmp_path}/{tar_file}"
-        if os.path.isdir(new_path) is False:
-            os.mkdir(new_path)
-        execute_cmd(f"rm -rf {new_path}/*")
-
-        tar_cmd = f"tar xzf {tar_full_path} -C {new_path}"
-        execute_cmd(tar_cmd)
-        config = f"imagenet1k_v2_base"
-        for fi_model_str, fi_model in fi_models.items():
-            for it in range(1, faults_per_fm + 1):
-                rad_log_dir = f"{new_path}/{rad_log_dir_base}"
-                nvbit_fi_log_dir = f"{new_path}/{nvbit_fi_log_dir_base}"
-                log_file = get_log_file_name(fi_dir=nvbit_fi_log_dir, config=config, fault_it=it,
-                                             fi_model=fi_model, group=fp32)
-                full_log_file = f"{rad_log_dir}/{log_file}"
-                new_line = parse_log_file(log_path=full_log_file)
-                if len(new_line) == 1:
-                    new_line = new_line[0]
-                    new_line["fi_model"], new_line["group"] = fi_model, fp32_str
-                    data_list.append(new_line)
-                elif len(new_line) > 1:
-                    raise ValueError("Incorrect size of new line")
+    # for tar_file, datasets in tar_files_imagenet.items():
+    #     tar_full_path = f"{data_location}/{tar_file}.tar.gz"
+    #     new_path = f"{tmp_path}/{tar_file}"
+    #     if os.path.isdir(new_path) is False:
+    #         os.mkdir(new_path)
+    #     execute_cmd(f"rm -rf {new_path}/*")
+    #
+    #     tar_cmd = f"tar xzf {tar_full_path} -C {new_path}"
+    #     execute_cmd(tar_cmd)
+    #     config = f"imagenet1k_v2_base"
+    #     for fi_model_str, fi_model in fi_models.items():
+    #         for it in range(1, faults_per_fm + 1):
+    #             rad_log_dir = f"{new_path}/{rad_log_dir_base}"
+    #             nvbit_fi_log_dir = f"{new_path}/{nvbit_fi_log_dir_base}"
+    #             log_file = get_log_file_name(fi_dir=nvbit_fi_log_dir, config=config, fault_it=it,
+    #                                          fi_model=fi_model, group=fp32)
+    #             full_log_file = f"{rad_log_dir}/{log_file}"
+    #             new_line = parse_log_file(log_path=full_log_file)
+    #             if len(new_line) == 1:
+    #                 new_line = new_line[0]
+    #                 new_line["fi_model"], new_line["group"] = fi_model, fp32_str
+    #                 data_list.append(new_line)
+    #             elif len(new_line) > 1:
+    #                 raise ValueError("Incorrect size of new line")
 
     df = pd.DataFrame(data_list)
     df = df.fillna(0)

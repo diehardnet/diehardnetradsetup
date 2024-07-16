@@ -18,7 +18,11 @@ def parse_log_file(log_path: str) -> List[dict]:
         data_list = list()
         with open(log_path) as log_fp:
             header = log_fp.readline()
-            h_m = re.match(r"#SERVER_HEADER.*--config.*/(\S+).yaml .*", header)
+            if "--config" in header:
+                h_m = re.match(r"#SERVER_HEADER.*--config.*/(\S+).yaml .*", header)
+            elif "config=" in header:
+                h_m = re.match(r"#HEADER.*config=.*/(\S+).yaml .*", header)
+
             config = h_m.group(1)
             # Find the batch size
             with open(f"../configurations/{config}.yaml") as fp:
@@ -29,11 +33,13 @@ def parse_log_file(log_path: str) -> List[dict]:
             critical_sdc, evil_sdc, benign_sdc = 0, 0, 0
             for line in log_fp:
                 ct_m = re.match(r"#ERR batch:\d+ critical-img:\d+ i:\d+ g:(\d+) o:(\d+) gt:(\d+)", line)
+                if not ct_m:
+                    ct_m = re.match("#ERR batch:\d+ critical-img:\d+ i:\d+ g:(\S+) o:(\S+)", line)
                 if ct_m:
                     critical_sdc += 1
-                    golden, output, ground_truth = ct_m.group(1), ct_m.group(2), ct_m.group(3)
-                    evil_sdc += int(output != ground_truth)
-                    benign_sdc += int(output == ground_truth and golden != ground_truth)
+                    # golden, output, ground_truth = ct_m.group(1), ct_m.group(2), ct_m.group(3)
+                    # evil_sdc += int(output != ground_truth)
+                    # benign_sdc += int(output == ground_truth and golden != ground_truth)
                 elif "critical-img" in line:
                     raise ValueError(f"Not a valid line {line}")
 
@@ -44,7 +50,8 @@ def parse_log_file(log_path: str) -> List[dict]:
                     curr_data = copy.deepcopy(data_dict)
                     curr_data.update(
                         dict(it=it, ker_time=float(ker_time), acc_time=0, ker_err=ker_err, acc_err=acc_err, sdc=1,
-                             critical_sdc=int(critical_sdc != 0), evil_sdc=evil_sdc, benign_sdc=benign_sdc,
+                             critical_sdc=int(critical_sdc != 0),
+                             # evil_sdc=evil_sdc, benign_sdc=benign_sdc,
                              hostname=hostname)
                     )
                     data_list.append(curr_data)
