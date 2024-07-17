@@ -30,15 +30,15 @@ DIEHARDNET_CLASSIFICATION_CONFIGS = (
             # Order inversion + nan filter + Relu6
             "_res44_test_02_relu6-bn_nanfilter",
             # Gelu and nan C100
-            "_res44_test_02_gelu6_nans",
-        ]
+            "_res44_test_02_gelu6_nans"]
         ]
         +  # Tiny imagenet
         [
             "tiny_res56_bn-relu_base",
-""tiny_res56_bn-relu_base.yaml,
-
-        ])
+            "tiny_res56_relu6-bn_aware",
+            "tiny_res56_relu6-bn_aware_nans",
+        ]
+)
 
 RESNET50_IMAGENET_1K_V2_BASE = "resnet50_imagenet1k_v2_base"
 DIEHARDNET_TRANS_LEARNING_CONFIGS = [
