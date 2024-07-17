@@ -18,6 +18,9 @@ import console_logger
 import dnn_log_helper
 from pytorch_scripts.utils import build_model
 
+from pytorch_scripts.tiny_imagenet import TinyImageNet
+
+
 
 class Timer:
     time_measure = 0
@@ -111,6 +114,10 @@ def load_dataset(batch_size: int, dataset: str, test_sample: int,
     elif dataset == configs.IMAGENET:
         test_set = torchvision.datasets.imagenet.ImageNet(root=configs.IMAGENET_DATASET_DIR, transform=transform,
                                                           split='val')
+    elif dataset == configs.TINY_IMAGENET:
+        # TinyImageNet(root=configs.TINY_IMAGENET_DATASET_DIR, split='val', download=True)
+        test_set = TinyImageNet(root=configs.TINY_IMAGENET_DATASET_DIR, split='val', download=True,
+                                transform=transform)
     elif dataset == configs.COCO:
         # This is only used when performing det/seg and these models already perform transforms
         test_set = torchvision.datasets.coco.CocoDetection(root=configs.COCO_DATASET_VAL,
