@@ -1,0 +1,21 @@
+name: tiny_res56_bn-relu_base_sgd_1
+mode: validate
+ckpt: tiny_res56_bn-relu_base_sgd-epoch=99-val_acc=0.56.ckpt
+dataset: tinyimagenet
+num_gpus: 1
+model: hard_resnet56
+loss: bce
+clip: !!float 1.0
+order: bn-relu
+activation: relu
+affine: true
+epochs: 100
+batch_size: 128
+lr: !!float 2.0
+wd: !!float 1e-5
+optimizer: sgd
+seed: 1
+error_model: square
+inject_p: !!float 0.0
+inject_epoch: 0
+nan: false
