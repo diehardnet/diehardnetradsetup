@@ -1,4 +1,4 @@
-name: tiny_res56_relu6-bn_aware_sgd_4
+name: tiny_res56_relu6-bn_aware
 mode: validate
 ckpt: tiny_res56_relu6-bn_aware_sgd-epoch=99-val_acc=0.53.ckpt
 dataset: tinyimagenet

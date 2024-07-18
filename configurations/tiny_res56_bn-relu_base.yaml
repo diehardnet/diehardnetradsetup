@@ -1,4 +1,4 @@
-name: tiny_res56_bn-relu_base_sgd_1
+name: tiny_res56_bn-relu_base
 mode: validate
 ckpt: tiny_res56_bn-relu_base_sgd-epoch=99-val_acc=0.56.ckpt
 dataset: tinyimagenet
