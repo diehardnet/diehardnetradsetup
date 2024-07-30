@@ -1,9 +1,11 @@
 import copy
 import datetime
+import math
 import os
 import re
 from typing import List
 
+import numpy as np
 import yaml
 
 
@@ -31,15 +33,20 @@ def parse_log_file(log_path: str) -> List[dict]:
                              logfile=os.path.basename(log_path), batch_size=batch_size)
             last_acc_time = 0
             critical_sdc, evil_sdc, benign_sdc = 0, 0, 0
+            there_is_nan_on_output, there_is_inf_on_output = 0, 0
             for line in log_fp:
-                ct_m = re.match(r"#ERR batch:\d+ critical-img:\d+ i:\d+ g:(\d+) o:(\d+) gt:(\d+)", line)
-                if not ct_m:
-                    ct_m = re.match("#ERR batch:\d+ critical-img:\d+ i:\d+ g:(\S+) o:(\S+)", line)
+                ct_m = re.match(r"#ERR batch:\d+ critical-img:\d+ i:\d+ g:(\S+) o:(\S+).*", line)
+                # if not ct_m:
+                #     ct_m = re.match("#ERR batch:\d+ critical-img:\d+ i:\d+ g:(\S+) o:(\S+)", line)
                 if ct_m:
                     critical_sdc += 1
-                    # golden, output, ground_truth = ct_m.group(1), ct_m.group(2), ct_m.group(3)
-                    # evil_sdc += int(output != ground_truth)
-                    # benign_sdc += int(output == ground_truth and golden != ground_truth)
+                    output = float(ct_m.group(2))
+                    assert math.isnan(output) == np.isnan(output), f"Both differ {line}"
+                    if math.isnan(output):
+                        there_is_nan_on_output = 1
+                    if math.isinf(output):
+                        there_is_inf_on_output = 1
+
                 elif "critical-img" in line:
                     raise ValueError(f"Not a valid line {line}")
 
@@ -50,12 +57,14 @@ def parse_log_file(log_path: str) -> List[dict]:
                     curr_data = copy.deepcopy(data_dict)
                     curr_data.update(
                         dict(it=it, ker_time=float(ker_time), acc_time=0, ker_err=ker_err, acc_err=acc_err, sdc=1,
-                             critical_sdc=int(critical_sdc != 0),
+                             critical_sdc=int(critical_sdc != 0), there_is_nan_on_output=there_is_nan_on_output,
+                             there_is_inf_on_output=there_is_inf_on_output,
                              # evil_sdc=evil_sdc, benign_sdc=benign_sdc,
                              hostname=hostname)
                     )
                     data_list.append(curr_data)
                     critical_sdc, evil_sdc, benign_sdc = 0, 0, 0
+                    there_is_nan_on_output, there_is_inf_on_output = 0, 0
 
             if data_list:
                 data_list[-1]["acc_time"] = last_acc_time
