@@ -80,3 +80,41 @@ optional arguments:
 --downloadmodels      Download the models
 --downloaddataset     Set to download the dataset, default is to not download. Needs internet.
 ```
+
+# To cite this work
+
+**The paper that describes the DieHardNet concept:**
+
+**2022 IEEE 28th International Symposium on On-Line Testing and Robust System Design (IOLTS)**
+
+```bibtex
+@INPROCEEDINGS{diehardnetIOLTS2022,
+  author={Cavagnero, Niccolò and Santos, Fernando Dos and Ciccone, Marco and Averta, 
+          Giuseppe and Tommasi, Tatiana and Rech, Paolo},
+  booktitle={2022 IEEE 28th International Symposium on On-Line Testing and Robust System Design (IOLTS)}, 
+  title={Transient-Fault-Aware Design and Training to Enhance DNNs Reliability with Zero-Overhead}, 
+  year={2022},
+  pages={1-7},
+  doi={10.1109/IOLTS56730.2022.9897813}
+}
+
+```
+
+**The paper that presents the neutron beam validation of DieHardNet:**
+
+**IEEE Transactions on Emerging Topics in Computing**
+```bibtex
+@article{diehardnetTETC2024,
+  TITLE = {{Improving Deep Neural Network Reliability via Transient-Fault-Aware Design and Training}},
+  AUTHOR = {Fernandes dos Santos, Fernando and Cavagnero, Niccol{\`o} and Ciccone, Marco and Averta, Giuseppe and Kritikakou, Angeliki and Sentieys, Olivier and Rech, Paolo and Tommasi, Tatiana},
+  URL = {https://hal.science/hal-04818068},
+  JOURNAL = {{IEEE Transactions on Emerging Topics in Computing}},
+  PUBLISHER = {{Institute of Electrical and Electronics Engineers}},
+  PAGES = {1-12},
+  YEAR = {2024},
+  KEYWORDS = {Deep Learning ; Reliability ; Neutrons ; GPUs ; Radiation-induced faults ✦},
+  PDF = {https://hal.science/hal-04818068v1/file/tetc_2023_diehardnet.pdf},
+  HAL_ID = {hal-04818068},
+  HAL_VERSION = {v1},
+}
+```
